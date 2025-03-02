@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChevronLeft, RefreshCw, Trash2 } from 'lucide-vue-next'
 import Button from '../components/ui/Button.vue'
@@ -21,18 +21,57 @@ const formatAmount = (amount: number) => {
 }
 
 const formatDate = (date: Date) => {
-  return new Date(date).toLocaleDateString()
+  return new Date(date).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
 }
 
-const getTimeAgo = (date: Date) => {
-  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
+const swipeOffset = ref<Record<number, number>>({})
+const touchStart = ref({ x: 0, y: 0 })
+const swipeThreshold = 50
+const maxSwipe = 80
+
+const handleTouchStart = (e: TouchEvent, transactionId: number) => {
+  touchStart.value = {
+    x: e.touches[0].clientX,
+    y: e.touches[0].clientY
+  }
+  if (!(transactionId in swipeOffset.value)) {
+    swipeOffset.value[transactionId] = 0
+  }
+}
+
+const handleTouchMove = (e: TouchEvent, transactionId: number) => {
+  const deltaX = e.touches[0].clientX - touchStart.value.x
+  const deltaY = Math.abs(e.touches[0].clientY - touchStart.value.y)
+
+  if (deltaY < 30) {
+    e.preventDefault()
+    const newOffset = Math.min(Math.max(deltaX, -maxSwipe), maxSwipe)
+    swipeOffset.value[transactionId] = newOffset
+  }
+}
+
+const handleTouchEnd = (e: TouchEvent, transactionId: number) => {
+  const currentOffset = swipeOffset.value[transactionId] || 0
+
+  if (Math.abs(currentOffset) <= swipeThreshold) {
+    swipeOffset.value[transactionId] = 0
+  } else {
+    swipeOffset.value[transactionId] = currentOffset > 0 ? maxSwipe : -maxSwipe
+  }
+}
+
+const handleRestore = (transactionId: number) => {
+  restoreTransaction(transactionId)
+  swipeOffset.value[transactionId] = 0
+}
+
+const handleDelete = (transactionId: number) => {
+  permanentlyDelete(transactionId)
+  swipeOffset.value[transactionId] = 0
 }
 </script>
 
@@ -53,40 +92,63 @@ const getTimeAgo = (date: Date) => {
       <div v-else class="transactions-list">
         <div v-for="transaction in sortedDeletedTransactions" 
              :key="transaction.id" 
-             class="transaction-item"
+             class="transaction-container"
         >
-          <div class="transaction-info">
-            <div class="amount" :class="{ negative: transaction.amount < 0 }">
-              {{ formatAmount(transaction.amount) }}
-            </div>
-            <div class="description">{{ transaction.description }}</div>
-            <div class="metadata">
-              <span class="date">{{ formatDate(transaction.date) }}</span>
-              <span class="deleted-at">Deleted {{ getTimeAgo(transaction.deletedAt) }}</span>
-            </div>
+          <div class="swipe-actions left">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              class="restore-btn"
+              @click="handleRestore(transaction.id)"
+            >
+              <RefreshCw :size="20" />
+            </Button>
           </div>
-          
-          <div class="actions">
+          <div class="swipe-actions right">
             <Button 
               variant="ghost" 
-              size="icon"
-              class="restore-btn" 
-              @click="restoreTransaction(transaction.id)"
-              title="Restore transaction"
+              size="icon" 
+              class="delete-btn"
+              @click="handleDelete(transaction.id)"
             >
-              <RefreshCw :size="16" />
+              <Trash2 :size="20" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="icon"
-              class="delete-btn" 
-              @click="permanentlyDelete(transaction.id)"
-              title="Delete permanently"
-            >
-              <Trash2 :size="16" />
-            </Button>
+          </div>
+
+          <div
+            class="transaction-item"
+            :style="{
+              transform: `translateX(${swipeOffset[transaction.id] ?? 0}px)`,
+            }"
+            @touchstart="(e) => handleTouchStart(e, transaction.id)"
+            @touchmove="(e) => handleTouchMove(e, transaction.id)"
+            @touchend="(e) => handleTouchEnd(e, transaction.id)"
+          >
+            <div class="transaction-layout">
+              <div class="transaction-amount">
+                <span :class="{ negative: transaction.amount < 0 }">
+                  {{ formatAmount(transaction.amount) }}
+                </span>
+              </div>
+              <div class="transaction-content">
+                <div class="description-category">
+                  <div class="description">{{ transaction.description }}</div>
+                  <div class="category" v-if="transaction.category">#{{ transaction.category }}</div>
+                </div>
+                <div class="account-date">
+                  <div class="date">{{ formatDate(transaction.date) }}</div>
+                  <div class="account">{{ transaction.account }}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="total-container">
+      <div class="total-amount">
+        <span>Total Amount</span>
       </div>
     </div>
   </div>
@@ -96,19 +158,22 @@ const getTimeAgo = (date: Date) => {
 .deleted-transactions {
   min-height: 100vh;
   background: black;
-  padding: 1rem;
+  padding-top: 4rem; /* Add space for fixed header */
+  padding-bottom: 5rem; /* Add padding to avoid overlap with total amount */
 }
 
 .header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.header h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
+  padding: 1rem;
+  background: black;
+  z-index: 10;
+  border-bottom: 1px solid #222;
 }
 
 .content {
@@ -122,57 +187,151 @@ const getTimeAgo = (date: Date) => {
   padding: 2rem;
 }
 
+.transaction-container {
+  position: relative;
+  overflow: hidden;
+}
+
 .transaction-item {
+  position: relative;
+  padding: 0.75rem 1rem;
+  background: black;
+  border-bottom: 1px solid #222;
+  width: 100%;
+  box-sizing: border-box;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  touch-action: pan-y;
+  z-index: 2;
+  will-change: transform;
+}
+
+.transaction-layout {
+  display: grid;
+  grid-template-areas: "amount content";
+  grid-template-columns: minmax(80px, auto) 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.transaction-amount {
+  grid-area: amount;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.transaction-content {
+  grid-area: content;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid #222;
-}
-
-.transaction-info {
-  flex: 1;
   min-width: 0;
+  align-items: center;
 }
 
-.amount {
-  font-size: 0.9375rem;
-  color: #42b883;
-  margin-bottom: 0.25rem;
+.description-category {
+  display: flex;
+  flex-direction: column;
+  padding-left: 20px;
+}
+
+.account-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .description {
-  color: white;
-  font-size: 0.9375rem;
-  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
 }
 
-.metadata {
+.category {
   font-size: 0.75rem;
-  color: #666;
-  display: flex;
-  gap: 1rem;
+  color: #888;
+  margin-top: 0.25rem;
 }
 
-.actions {
-  display: flex;
-  gap: 0.5rem;
+.account {
+  font-size: 0.75rem;
+  color: #888;
 }
 
-.restore-btn {
-  color: #2563eb;
-}
-
-.delete-btn {
-  color: #dc2626;
-}
-
-.restore-btn:hover,
-.delete-btn:hover {
-  transform: scale(1.1);
+.date {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 0.25rem;
 }
 
 .negative {
   color: #ef4444;
+}
+
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.swipe-actions.left {
+  left: 0;
+  background: #1d4ed8;
+}
+
+.swipe-actions.right {
+  right: 0;
+  background: #b91c1c;
+}
+
+.restore-btn {
+  color: white;
+}
+
+.delete-btn {
+  color: white;
+}
+
+.total-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: black;
+  padding: 1rem;
+  text-align: center;
+  z-index: 10;
+}
+
+.total-amount {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #42b883; /* Add default color for positive amounts */
+}
+
+@media (max-width: 480px) {
+  .transaction-item {
+    padding: 0.625rem 0.875rem;
+  }
+  
+  .transaction-amount {
+    font-size: 0.875rem;
+  }
+
+  .description {
+    font-size: 0.875rem;
+  }
+
+  .category, .account, .date {
+    font-size: 0.6875rem;
+  }
+
+  .transaction-layout {
+    grid-template-columns: minmax(70px, auto) 1fr;
+    gap: 0.5rem;
+  }
 }
 </style>

@@ -231,6 +231,8 @@ watch(selectedCurrency, () => {
   padding: 1rem;
   background: #111;
   border-radius: 8px;
+  position: relative;
+  z-index: 100; /* Add this to ensure form appears above other elements */
 }
 
 .add-account h2 {
@@ -242,6 +244,7 @@ watch(selectedCurrency, () => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  position: relative; /* Add this line */
 }
 
 .account-input {

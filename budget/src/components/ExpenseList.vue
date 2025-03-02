@@ -16,6 +16,7 @@ interface Expense {
 const props = defineProps<{
   expenses: Expense[];
   selectedDate?: Date;
+  hideTotal?: boolean; // Add this prop
 }>()
 
 const formattedAmount = (amount: number) => {
@@ -287,7 +288,7 @@ onUnmounted(() => {
   </div>
 
   <div 
-    v-if="filteredExpenses.length > 0" 
+    v-if="filteredExpenses.length > 0 && !hideTotal" 
     class="total-spend"
     @touchstart="handleTotalSwipe"
   >
@@ -455,7 +456,7 @@ onUnmounted(() => {
   }
 
   .account-name {
-    font-size: 1rem;
+    font-size: 0.8;
   }
 }
 

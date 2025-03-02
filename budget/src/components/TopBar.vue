@@ -29,6 +29,10 @@ const totalAmount = computed(() => {
 const changeDate = (days: number) => {
   const newDate = new Date(props.currentDate)
   newDate.setDate(newDate.getDate() + days)
+  
+  // Prevent selecting future dates
+  if (newDate > new Date()) return
+  
   emit('update:currentDate', newDate)
 }
 
@@ -42,19 +46,30 @@ const selectDate = (date: Date) => {
 }
 
 const formatDate = (date: Date) => {
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 const handleCalendarUpdate = (date: Date) => {
+  // Prevent selecting future dates
+  if (date > new Date()) return
+  
   emit('update:currentDate', date)
   showCalendar.value = false
 }
+
+// Add computed for max date
+const maxDate = computed(() => new Date())
 
 const router = useRouter()
 
 const toggleSettings = (event: MouseEvent) => {
   event.stopPropagation()
   router.push('/settings')
+}
+
+const toggleAllTransactions = (event: MouseEvent) => {
+  event.stopPropagation()
+  router.push('/all-transactions')
 }
 </script>
 
@@ -70,7 +85,12 @@ const toggleSettings = (event: MouseEvent) => {
         <span>{{ formatDate(currentDate) }}</span>
       </Button>
       
-      <Button variant="ghost" size="icon" @click="changeDate(1)">
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        @click="changeDate(1)"
+        :disabled="currentDate.toDateString() === new Date().toDateString()"
+      >
         <ChevronRight :size="20" />
       </Button>
     </div>
@@ -78,7 +98,7 @@ const toggleSettings = (event: MouseEvent) => {
     <div class="amount">{{ totalAmount }}</div>
 
     <div class="actions">
-      <Button variant="ghost" size="icon">
+      <Button variant="ghost" size="icon" @click="toggleAllTransactions">
         <Menu :size="24" />
       </Button>
       <Button variant="ghost" size="icon" @click="toggleSettings">
@@ -91,6 +111,7 @@ const toggleSettings = (event: MouseEvent) => {
         <div class="calendar-wrapper">
           <Calendar 
             :model-value="currentDate"
+            :max-date="maxDate"
             @update:model-value="handleCalendarUpdate"
           />
         </div>
@@ -278,5 +299,10 @@ body {
   .date-selector {
     min-width: 100px;
   }
+}
+
+.button--icon[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

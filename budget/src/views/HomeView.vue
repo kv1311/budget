@@ -26,15 +26,19 @@ const inputValue = ref('')
 const currentDate = ref(new Date()) // Add this
 
 const parseExpense = (input: string): Partial<Expense> | null => {
-  const amount = input.match(/(\d+(\.\d{1,2})?)/)?.[0]
-  const description = input.match(/(?:^|\s)(?!:\S|#\S)([^#:]+?)(?=\s+[:#]|$)/)?.[1]?.trim()
-  const accountMatch = input.match(/:([^\s#]+)/)  // Modified regex
+  const amountMatch = input.match(/(\d+(\.\d{1,2})?)/)?.[0]
+  if (!amountMatch) return null
+  
+  // Remove amount from input before parsing description
+  const inputWithoutAmount = input.replace(amountMatch, '').trim()
+  const description = inputWithoutAmount.match(/^([^:#]+)/)?.[1]?.trim()
+  const accountMatch = input.match(/:([^\s#]+)/)
   const category = input.match(/#(\S+)/)?.[1]
 
-  if (!amount || !description) return null
+  if (!description) return null
 
   return {
-    amount: parseFloat(amount),
+    amount: parseFloat(amountMatch),
     description,
     account: accountMatch ? accountMatch[1].trim() : undefined,
     category: category || 'uncategorized'
@@ -269,6 +273,7 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   border-top: 1px solid #222;
   margin-top: 0; /* Remove auto margin */
   position: relative;
+  z-index: 999; /* Add this line */
 }
 
 .expense-input {

@@ -4,6 +4,7 @@ import Settings from '../pages/Settings.vue'
 import AccountsView from '../views/AccountsView.vue'
 import CurrencySettings from '../pages/CurrencySettings.vue'
 import DeletedTransactionsView from '@/views/DeletedTransactionsView.vue'
+import AllTransactionsView from '@/views/AllTransactionsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -24,6 +25,10 @@ const router = createRouter({
     {
       path: '/settings',
       component: Settings
+    },
+    {
+      path: '/all-transactions',
+      component: AllTransactionsView
     },
     {
       path: '/settings/:section',
