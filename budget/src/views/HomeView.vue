@@ -174,9 +174,31 @@ const handleAddExpense = (expenseData: any) => {
 }
 
 const filteredExpenses = computed(() => {
-  return transactions.value.filter(transaction => 
-    transaction.date.toDateString() === currentDate.value.toDateString()
-  )
+  if (!currentDate.value) return transactions.value
+
+  const selectedDate = new Date(currentDate.value)
+  const selectedDateString = selectedDate.toDateString()
+  
+  // Only filter by exact date match for display purposes
+  return transactions.value.filter(transaction => {
+    const txDate = new Date(transaction.date)
+    return txDate.toDateString() === selectedDateString
+  })
+})
+
+// Add new computed property for monthly expenses
+const monthlyExpenses = computed(() => {
+  if (!currentDate.value) return transactions.value
+
+  const selectedDate = new Date(currentDate.value)
+  const currentMonth = selectedDate.getMonth()
+  const currentYear = selectedDate.getFullYear()
+
+  return transactions.value.filter(transaction => {
+    const txDate = new Date(transaction.date)
+    return txDate.getMonth() === currentMonth && 
+           txDate.getFullYear() === currentYear
+  })
 })
 
 const hasExpenses = computed(() => transactions.value.length > 0)
@@ -202,7 +224,7 @@ const hasExpenses = computed(() => transactions.value.length > 0)
         </div>
         <div v-else class="content">
           <ExpenseList 
-            :expenses="filteredExpenses" 
+            :expenses="monthlyExpenses" 
             :selected-date="currentDate"
           />
         </div>

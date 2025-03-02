@@ -185,16 +185,23 @@ const handleEditKeydown = (e: KeyboardEvent, expense: Expense) => {
 const monthlyTotal = computed(() => {
   if (!props.selectedDate) return 0
   
-  const currentMonth = props.selectedDate.getMonth()
-  const currentYear = props.selectedDate.getFullYear()
+  const selectedDate = new Date(props.selectedDate)
+  const currentMonth = selectedDate.getMonth()
+  const currentYear = selectedDate.getFullYear()
   
   return props.expenses
     .filter(expense => {
+      // Ensure we create a new Date from the expense date
       const expenseDate = new Date(expense.date)
+      // Compare just the month and year
       return expenseDate.getMonth() === currentMonth && 
              expenseDate.getFullYear() === currentYear
     })
-    .reduce((total, expense) => total + expense.amount, 0)
+    .reduce((total, expense) => {
+      // Add debug logging
+      console.log('Adding expense:', expense.amount, 'Date:', new Date(expense.date))
+      return total + expense.amount
+    }, 0)
 })
 
 // Add state for total display
@@ -294,10 +301,10 @@ onUnmounted(() => {
   >
     <TransitionGroup name="flip">
       <span v-if="!showMonthlyTotal" :key="'daily'" class="total-amount">
-        {{ formatAmount(totalSpend, selectedCurrency.code) }}
+        Daily: {{ formatAmount(totalSpend, selectedCurrency.code) }}
       </span>
       <span v-else :key="'monthly'" class="total-amount">
-        Month: {{ formatAmount(monthlyTotal, selectedCurrency.code) }}
+        Monthly: {{ formatAmount(monthlyTotal, selectedCurrency.code) }}
       </span>
     </TransitionGroup>
   </div>
