@@ -127,15 +127,16 @@ const toggleAllTransactions = (event: MouseEvent) => {
   left: 0;
   right: 0;
   width: 100%;
-  height: 64px; /* Fixed height for consistency */
   z-index: 1000;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 2rem;
   background-color: #000;
   border-bottom: 1px solid #333;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  /* Adjust height and padding for proper status bar spacing */
+  height: calc(56px + env(safe-area-inset-top, 44px));
+  padding: calc(env(safe-area-inset-top, 44px) + 0.5rem) 1rem 0.5rem;
 }
 
 .date-navigator {
@@ -191,7 +192,7 @@ const toggleAllTransactions = (event: MouseEvent) => {
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
-  padding-top: 80px;
+  padding-top: calc(64px + env(safe-area-inset-top, 0)); /* Adjust padding-top to include safe area inset */
   z-index: 1001; /* Above the top bar */
   overflow-y: auto;
 }
@@ -252,9 +253,9 @@ body {
 
 @media (max-width: 768px) {
   .top-bar {
-    padding: 0 0.5rem;
-    height: 56px;
-    gap: 0.5rem;
+    padding: 20px;
+    padding-top: calc(env(safe-area-inset-top,65px) + 0.5rem);
+    height: 110px
   }
 
   .date-navigator {
@@ -291,7 +292,7 @@ body {
   }
 
   .calendar-popup {
-    padding-top: 60px;
+    padding-top: calc(56px + env(safe-area-inset-top, 20px)); /* Adjust padding-top for mobile */
   }
 }
 

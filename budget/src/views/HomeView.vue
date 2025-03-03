@@ -257,17 +257,23 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   color: #fff;
   display: flex;
   flex-direction: column;
+  /* Adjust padding to match new TopBar height */
+  padding-top: calc(env(safe-area-inset-top, 60px) + 60px);
 }
 
 .content {
   flex: 1;
   padding: 0;
-  margin-top: 64px;
+  margin-top: 1rem; /* Adjust margin to create more space */
+  overflow: hidden; /* Prevent scrolling */
 }
 
 @media (max-width: 768px) {
+  .home {
+    padding-top: calc(env(safe-area-inset-top, 44px) + 48px);
+  }
   .content {
-    margin-top: 15px;
+    margin-top: 0.5rem; /* Adjust mobile spacing */
     padding: 0;
   }
 }
