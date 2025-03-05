@@ -366,6 +366,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+  
 }
 
 .description {

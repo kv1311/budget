@@ -133,10 +133,9 @@ watch(selectedCurrency, () => {
 
 <style scoped>
 .accounts {
-  min-height: 100vh;
-  background-color: #000;
-  color: #fff;
   padding: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .accounts-header {

@@ -252,13 +252,9 @@ const hasExpenses = computed(() => transactions.value.length > 0)
 
 <style scoped>
 .home {
-  min-height: 100vh;
-  background-color: #000;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  /* Adjust padding to match new TopBar height */
-  padding-top: calc(env(safe-area-inset-top, 60px) + 60px);
+  padding: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .content {

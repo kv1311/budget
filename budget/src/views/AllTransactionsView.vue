@@ -25,7 +25,33 @@ const router = useRouter()
 const showDateRange = ref(false)
 const showFromCalendar = ref(false)
 const showToCalendar = ref(false)
-const touchStart = ref({ y: 0 })
+const touchStart = ref({ x: 0, y: 0 })
+const touchEnd = ref({ x: 0, y: 0 })
+const minSwipeDistance = 50
+const calendarTopPosition = ref(0)
+
+const closeCalendars = () => {
+  showFromCalendar.value = false
+  showToCalendar.value = false
+}
+
+const showCalendar = (type: 'from' | 'to', event: MouseEvent) => {
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  calendarTopPosition.value = rect.bottom + 8 // 8px gap
+
+  if (type === 'from') {
+    showFromCalendar.value = true
+    showToCalendar.value = false
+  } else {
+    showToCalendar.value = true
+    showFromCalendar.value = false
+  }
+}
+
+// Update click handlers in template
+const handleFromDateClick = (e: MouseEvent) => showCalendar('from', e)
+const handleToDateClick = (e: MouseEvent) => showCalendar('to', e)
 
 // Get the date of first transaction
 const firstTransactionDate = computed(() => {
@@ -38,16 +64,32 @@ const fromDate = ref(firstTransactionDate.value)
 const toDate = ref(new Date())
 
 const handleTouchStart = (e: TouchEvent) => {
-  touchStart.value.y = e.touches[0].clientY
+  touchStart.value = {
+    x: e.touches[0].clientX,
+    y: e.touches[0].clientY
+  }
+  touchEnd.value = { ...touchStart.value }
 }
 
 const handleTouchMove = (e: TouchEvent) => {
-  const deltaY = touchStart.value.y - e.touches[0].clientY
-  if (deltaY > 50) { // Swipe up threshold
-    showDateRange.value = true
-  } else if (deltaY < -50) { // Swipe down threshold
-    showDateRange.value = false
+  touchEnd.value = {
+    x: e.touches[0].clientX,
+    y: e.touches[0].clientY
   }
+  
+  const deltaY = touchEnd.value.y - touchStart.value.y
+  if (Math.abs(deltaY) > minSwipeDistance) {
+    if (deltaY < 0) { // Swipe up
+      showDateRange.value = true
+    } else { // Swipe down
+      showDateRange.value = false
+    }
+  }
+}
+
+const handleTouchEnd = () => {
+  touchStart.value = { x: 0, y: 0 }
+  touchEnd.value = { x: 0, y: 0 }
 }
 
 const groupedTransactions = computed(() => {
@@ -104,29 +146,16 @@ const formatCurrency = (amount: number) => {
       class="header"
       @touchstart="handleTouchStart"
       @touchmove="handleTouchMove"
+      @touchend="handleTouchEnd"
     >
       <Button variant="ghost" size="icon" @click="router.back()">
         <ChevronLeft :size="24" />
       </Button>
       <h1>Transactions</h1>
+      <div class="swipe-hint" :class="{ active: showDateRange }"></div>
     </header>
 
-    <Transition name="slide">
-      <div v-if="showDateRange" class="date-range">
-        <div class="date-inputs">
-          <div class="date-field" @click="showFromCalendar = true">
-            <CalendarIcon :size="16" />
-            <span>From: {{ formatDate(fromDate) }}</span>
-          </div>
-          <div class="date-field" @click="showToCalendar = true">
-            <CalendarIcon :size="16" />
-            <span>To: {{ formatDate(toDate) }}</span>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <div class="content">
+    <div class="scrollable-content">
       <div v-if="Object.keys(groupedTransactions).length === 0" class="empty-state">
         <p>No transactions yet</p>
       </div>
@@ -149,7 +178,7 @@ const formatCurrency = (amount: number) => {
       </template>
     </div>
 
-    <div class="total-container">
+    <div class="total-bar">
       <div v-if="Object.keys(groupedTransactions).length > 0" class="total-amount">
         <span :class="{ negative: totalAmount < 0 }">
           {{ formatCurrency(totalAmount) }}
@@ -157,24 +186,44 @@ const formatCurrency = (amount: number) => {
       </div>
     </div>
 
+    <!-- Date Range Popup -->
+    <Transition name="fade">
+      <div v-if="showDateRange" class="date-range-popup" @click.self="showDateRange = false">
+        <div class="date-range-content">
+          <div class="date-inputs">
+            <div class="date-field" @click="handleFromDateClick">
+              <CalendarIcon :size="16" />
+              <span>From: {{ formatDate(fromDate) }}</span>
+            </div>
+            <div class="date-field" @click="handleToDateClick">
+              <CalendarIcon :size="16" />
+              <span>To: {{ formatDate(toDate) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Calendar Popups -->
     <Transition name="fade">
-      <div v-if="showFromCalendar" class="calendar-popup" @click.self="showFromCalendar = false">
-        <div class="calendar-wrapper">
+      <div v-if="showFromCalendar || showToCalendar" class="calendar-popup" @click.self="closeCalendars">
+        <div 
+          class="calendar-wrapper"
+          :style="{
+            top: `${calendarTopPosition}px`,
+            left: '50%',
+            transform: 'translateX(-50%)'
+          }"
+        >
           <Calendar 
+            v-if="showFromCalendar"
             :model-value="fromDate"
             :max-date="toDate"
             @update:model-value="(date) => { fromDate = date; showFromCalendar = false }"
             @monthChange="(date) => fromDate = date"
           />
-        </div>
-      </div>
-    </Transition>
-
-    <Transition name="fade">
-      <div v-if="showToCalendar" class="calendar-popup" @click.self="showToCalendar = false">
-        <div class="calendar-wrapper">
           <Calendar 
+            v-if="showToCalendar"
             :model-value="toDate"
             :min-date="fromDate"
             :max-date="new Date()"
@@ -188,32 +237,55 @@ const formatCurrency = (amount: number) => {
 </template>
 
 <style scoped>
+
 .transactions-view {
-  min-height: 100vh;
-  background: black;
-  color: white;
-  padding-top: 4rem; /* Add space for fixed header */
-  padding-bottom: 5rem; /* Add padding to avoid overlap with total amount */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #000;
+  position: fixed;
+  width: 85%;
 }
 
 .header {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: black;
-  z-index: 10;
+  width: 100%;
+  z-index: 1000;
+  background: #000;
+  min-height: 1cm;
+  padding: 1rem;
   border-bottom: 1px solid #222;
-  height: 4rem; /* Fixed height */
-  touch-action: none; /* Prevent scrolling */
+  touch-action: none; /* Prevent browser touch actions */
 }
 
-.header h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
+.scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1rem;
+  padding-top: 8rem; /* Make space for fixed header */
+  padding-bottom: 8rem; /* Make space for total bar */
+}
+
+.total-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #222;
+  padding: 1rem;
+  z-index: 100;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.total-amount {
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 500;
 }
 
 .content {
@@ -254,76 +326,89 @@ const formatCurrency = (amount: number) => {
 }
 
 .day-total.negative {
-  color: #ef4444;
+  color: #8e44ef;
 }
 
-.date-range {
+.date-range-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.date-range-content {
+  position: absolute;
+  top: calc(64px + env(safe-area-inset-top, 20px));
+  width: 90%;
+  max-width: 400px;
   background: #111;
+  border-radius: 12px;
   padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 8px;
+  animation: slideIn 0.2s ease-out;
+  border: 1px solid #333;
+  z-index: 1001;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .date-inputs {
   display: flex;
-  gap: 1rem;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .date-field {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
   background: #000;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
+  transition: background-color 0.2s ease;
+  position: relative;
 }
 
 .date-field:hover {
   background: #222;
 }
 
-.calendar-popup {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 100;
+/* Update transition classes */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s;
 }
 
-.calendar-wrapper {
-  background: #111;
-  padding: 1rem;
-  border-radius: 12px;
-  max-width: 90%;
-  transform-origin: center;
-  animation: popup 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-@keyframes popup {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+/* Remove unused date-range styles */
+.date-range {
+  display: none;
 }
 
 .total-container {
-  position: fixed;
   bottom: 0;
   left: 0;
-  right: 0;
+  right: 0; 
   background: black;
   padding: 1rem;
   text-align: center;
@@ -368,10 +453,38 @@ const formatCurrency = (amount: number) => {
   opacity: 0;
 }
 
+.calendar-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1001;
+  display: flex;
+}
+
+.calendar-wrapper {
+  position: absolute;
+  background: #111;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid #333;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 1002; /* Above the backdrop blur */
+}
+
 @media (max-width: 480px) {
   .header {
-    padding: 0.25rem 0;
-    height: 3.5rem; /* Fixed height for mobile */
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    padding-top: 3rem
+  }
+
+
+  .total-bar {
+    padding: 0.75rem 1rem;
   }
 
   .date-header {

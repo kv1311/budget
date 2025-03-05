@@ -156,24 +156,21 @@ const handleDelete = (transactionId: number) => {
 
 <style scoped>
 .deleted-transactions {
-  min-height: 100vh;
+  padding: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
   background: black;
   padding-top: 4rem; /* Add space for fixed header */
   padding-bottom: 5rem; /* Add padding to avoid overlap with total amount */
 }
 
 .header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: black;
-  z-index: 10;
-  border-bottom: 1px solid #222;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .content {
@@ -303,7 +300,8 @@ const handleDelete = (transactionId: number) => {
   background: black;
   padding: 1rem;
   text-align: center;
-  z-index: 10;
+  z-index: 100;
+  width: 100%;
 }
 
 .total-amount {

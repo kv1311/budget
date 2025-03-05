@@ -10,7 +10,7 @@ import PageTransition from './components/PageTransition.vue'
 
 <style>
 :root {
-  --top-bar-height: 64px;
+  
   --font-family: "Courier New", Courier, monospace;
 }
 

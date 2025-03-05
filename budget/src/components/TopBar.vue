@@ -71,27 +71,52 @@ const toggleAllTransactions = (event: MouseEvent) => {
   event.stopPropagation()
   router.push('/all-transactions')
 }
+
+const touchStart = ref<number | null>(null)
+const touchEnd = ref<number | null>(null)
+const minSwipeDistance = 50
+
+const handleTouchStart = (e: TouchEvent) => {
+  touchStart.value = e.touches[0].clientX
+  touchEnd.value = null
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+  touchEnd.value = e.touches[0].clientX
+}
+
+const handleTouchEnd = () => {
+  if (!touchStart.value || !touchEnd.value) return
+
+  const distance = touchEnd.value - touchStart.value
+  const isSwipe = Math.abs(distance) > minSwipeDistance
+
+  if (isSwipe) {
+    if (distance > 0) {
+      changeDate(-1) // Swipe right = previous day
+    } else {
+      changeDate(1)  // Swipe left = next day
+    }
+  }
+
+  touchStart.value = null
+  touchEnd.value = null
+}
 </script>
 
 <template>
   <div class="top-bar">
     <div class="date-navigator">
-      <Button variant="ghost" size="icon" @click="changeDate(-1)">
-        <ChevronLeft :size="20" />
-      </Button>
-      
-      <Button variant="outline" class="date-selector" @click="toggleCalendar">
+      <Button 
+        variant="outline" 
+        class="date-selector" 
+        @click="toggleCalendar"
+        @touchstart="handleTouchStart"
+        @touchmove="handleTouchMove"
+        @touchend="handleTouchEnd"
+      >
         <CalendarIcon :size="16" class="calendar-icon" />
         <span>{{ formatDate(currentDate) }}</span>
-      </Button>
-      
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        @click="changeDate(1)"
-        :disabled="currentDate.toDateString() === new Date().toDateString()"
-      >
-        <ChevronRight :size="20" />
       </Button>
     </div>
 
@@ -122,66 +147,57 @@ const toggleAllTransactions = (event: MouseEvent) => {
 
 <style scoped>
 .top-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  z-index: 1000;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  height: 3rem;
   background-color: #000;
-  border-bottom: 1px solid #333;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-  /* Adjust height and padding for proper status bar spacing */
-  height: calc(56px + env(safe-area-inset-top, 44px));
-  padding: calc(env(safe-area-inset-top, 44px) + 0.5rem) 1rem 0.5rem;
+  border-bottom: 1px solid #222;
+  padding: 0 0.5rem;
+  gap: 0.5rem;
 }
 
 .date-navigator {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0 rem; /* Reduced gap between arrows and date */
+  flex-shrink: 0;
 }
 
 .date-selector {
-  min-width: 200px;
-  justify-content: flex-start;
-  gap: 0.5rem;
-}
-
-.nav-btn, .action-btn, .date-btn {
-  background: none;
-  border: none;
-  color: #fff;
+  min-width: auto; /* Allow button to shrink */
+  padding: 0 1rem;
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  position: relative;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
-.date-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-}
-
-.nav-btn:hover, .action-btn:hover, .date-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+.date-selector::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  opacity: 0.5;
+  border-radius: 1px;
 }
 
 .amount {
-  font-size: 1.5rem;
+  font-size: 1.25rem; /* Slightly smaller font */
   font-weight: bold;
   color: #42b883;
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.actions {
-  display: flex;
-  gap: 1rem;
-}
 
 .calendar-popup {
   position: fixed;
@@ -192,8 +208,8 @@ const toggleAllTransactions = (event: MouseEvent) => {
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
-  padding-top: calc(64px + env(safe-area-inset-top, 0)); /* Adjust padding-top to include safe area inset */
-  z-index: 1001; /* Above the top bar */
+  padding-top: calc(64px + env(safe-area-inset-top, 20px)); /* Fallback added */
+  z-index: 1001;
   overflow-y: auto;
 }
 
@@ -203,15 +219,6 @@ const toggleAllTransactions = (event: MouseEvent) => {
   max-height: calc(100vh - 100px);
   animation: slideDown 0.2s ease-out;
 }
-
-/* Remove these global styles as they're no longer needed:
-:root {
-  --top-bar-height: 64px;
-}
-
-body {
-  padding-top: var(--top-bar-height);
-} */
 
 @keyframes slideDown {
   from {
@@ -235,7 +242,6 @@ body {
 
 .calendar-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   color: #fff;
   margin-bottom: 1rem;
@@ -253,23 +259,32 @@ body {
 
 @media (max-width: 768px) {
   .top-bar {
-    padding: 20px;
-    padding-top: calc(env(safe-area-inset-top,65px) + 0.5rem);
-    height: 110px
-  }
-
-  .date-navigator {
-    gap: 0.25rem;
+    padding: 0 0.25rem;
   }
 
   .date-selector {
-    min-width: 120px;
-    padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
   }
 
   .amount {
     font-size: 1rem;
+  }
+
+  .button--icon {
+    width: 2rem;
+    height: 2rem;
+    padding: 0.25rem;
+  }
+
+  .date-selector {
+    min-width: 110px;
+    padding: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .amount {
+    font-size: 1rem;
+    max-width: 150px; /* Adjusted max-width for mobile */
     flex-shrink: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -284,7 +299,7 @@ body {
   .button--icon {
     width: 32px;
     height: 32px;
-    padding: 0.25rem;
+    padding: 0.35rem;
   }
 
   .calendar-icon {
@@ -292,7 +307,7 @@ body {
   }
 
   .calendar-popup {
-    padding-top: calc(56px + env(safe-area-inset-top, 20px)); /* Adjust padding-top for mobile */
+    padding-top: calc(56px + env(safe-area-inset-top, 20px));
   }
 }
 
