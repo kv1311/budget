@@ -11,16 +11,30 @@ import {
   ChevronRight
 } from 'lucide-vue-next'
 import Button from '../components/ui/Button.vue'
+import { exportAllData, importAllData } from '../stores/useStore'
+import { ref } from 'vue'
 
 const router = useRouter()
+
+const importStatus = ref('')
+
+const handleExport = () => {
+  exportAllData()
+}
+
+const handleImport = async () => {
+  const success = await importAllData()
+  importStatus.value = success ? 'Import successful!' : 'Import failed'
+  setTimeout(() => importStatus.value = '', 3000)
+}
 
 const settingsItems = [
   { icon: CreditCard, label: 'Accounts', route: '/settings/accounts' },
   { icon: Clock, label: 'Recently Deleted', route: '/settings/deleted' },
   { icon: DollarSign, label: 'Currency', route: '/settings/currency' },
   { icon: BarChart3, label: 'Analysis', route: '/settings/analysis' },
-  { icon: FileDown, label: 'Export Data', route: '/settings/export' },
-  { icon: Save, label: 'Backup', route: '/settings/backup' },
+  { icon: FileDown, label: 'Export Data', action: handleExport },
+  { icon: Save, label: 'Import Backup', action: handleImport },
 ]
 </script>
 
@@ -36,14 +50,18 @@ const settingsItems = [
     <div class="settings-list">
       <Button
         v-for="item in settingsItems"
-        :key="item.route"
+        :key="item.label"
         variant="ghost"
         class="setting-item"
-        @click="router.push(item.route)"
+        @click="item.action ? item.action() : router.push(item.route)"
       >
         <component :is="item.icon" :size="24" />
         <span>{{ item.label }}</span>
       </Button>
+    </div>
+
+    <div v-if="importStatus" class="import-status">
+      {{ importStatus }}
     </div>
   </div>
 </template>
@@ -82,5 +100,17 @@ const settingsItems = [
   padding: 1rem;
   justify-content: flex-start;
   font-size: 1rem;
+}
+
+.import-status {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #4CAF50;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  z-index: 100;
 }
 </style>

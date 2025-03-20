@@ -1,4 +1,5 @@
 import { ref, watch } from 'vue'
+import { downloadJSON, uploadJSON } from '../utils/fileHelper'
 
 export interface Account {
   id: number
@@ -165,4 +166,56 @@ export function restoreTransaction(deletedId: number) {
 
 export function permanentlyDelete(deletedId: number) {
   deletedTransactions.value = deletedTransactions.value.filter(t => t.id !== deletedId)
+}
+export function exportAllData() {
+  const data = {
+    accounts: accounts.value,
+    transactions: transactions.value,
+    deletedTransactions: deletedTransactions.value,
+    selectedCurrency: selectedCurrency.value
+  };
+  
+  const timestamp = new Date().toISOString().split('T')[0];
+  downloadJSON(data, `budget-backup-${timestamp}.json`);
+}
+
+export async function importAllData() {
+  try {
+    const data = await uploadJSON();
+    
+    // Validate data structure
+    if (!data.accounts || !data.transactions || !data.selectedCurrency) {
+      throw new Error('Invalid backup file format');
+    }
+
+    // Parse dates
+    data.accounts = data.accounts.map((a: any) => ({
+      ...a,
+      createdAt: new Date(a.createdAt)
+    }));
+    
+    data.transactions = data.transactions.map((t: any) => ({
+      ...t,
+      date: new Date(t.date)
+    }));
+
+    if (data.deletedTransactions) {
+      data.deletedTransactions = data.deletedTransactions.map((t: any) => ({
+        ...t,
+        date: new Date(t.date),
+        deletedAt: new Date(t.deletedAt)
+      }));
+    }
+
+    // Update store
+    accounts.value = data.accounts;
+    transactions.value = data.transactions;
+    deletedTransactions.value = data.deletedTransactions || [];
+    setCurrency(data.selectedCurrency);
+
+    return true;
+  } catch (error) {
+    console.error('Import failed:', error);
+    return false;
+  }
 }

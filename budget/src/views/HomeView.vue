@@ -255,6 +255,7 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   padding: 1rem;
   max-width: 600px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .content {
@@ -262,15 +263,18 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   padding: 0;
   margin-top: 1rem; /* Adjust margin to create more space */
   overflow: hidden; /* Prevent scrolling */
+  width: 100%;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1000px) {
   .home {
     padding-top: calc(env(safe-area-inset-top, 44px) + 48px);
+    width: 100%;
   }
   .content {
     margin-top: 0.5rem; /* Adjust mobile spacing */
     padding: 0;
+    width: 100%;
   }
 }
 
@@ -287,6 +291,7 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   display: flex;
   flex-direction: column;
   gap: 0;
+  width: 100%;
 }
 
 .input-container {

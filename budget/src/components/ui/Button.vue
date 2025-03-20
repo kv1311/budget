@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
-  variant?: 'default' | 'outline' | 'ghost'
+  variant?: 'default' | 'outline' | 'ghost' | 'destructive'
   size?: 'default' | 'icon'
 }>()
 </script>
@@ -76,6 +76,19 @@ const props = defineProps<{
 
 .button:hover {
   opacity: 0.9;
+}
+
+.destructive {
+  background-color: #ff4757;
+  color: white;
+}
+
+.destructive:hover {
+  background-color: #ff6b81;
+}
+
+.destructive:active {
+  background-color: #ff4757;
 }
 
 @media (max-width: 768px) {
