@@ -145,37 +145,39 @@ const handleDelete = (transactionId: number) => {
         </div>
       </div>
     </div>
-
-    <div class="total-container">
-      <div class="total-amount">
-        <span>Total Amount</span>
-      </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .deleted-transactions {
-  padding: 1rem;
-  max-width: 600px;
-  margin: 0 auto;
-  background: black;
-  padding-top: 4rem; /* Add space for fixed header */
-  padding-bottom: 5rem; /* Add padding to avoid overlap with total amount */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #000;
+  position: fixed;
+  width: 100%;
 }
 
 .header {
+  position: fixed;
   display: flex;
   align-items: center;
   gap: 1rem;
+  width: 100%;
+  z-index: 1000;
+  background: #000;
+  min-height: 1cm;
   padding: 1rem;
-  max-width: 600px;
-  margin: 0 auto;
+  border-bottom: 1px solid #222;
+  touch-action: none;
 }
 
 .content {
-  max-width: 768px;
-  margin: 0 auto;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1rem;
+  padding-top: 6.5rem;
+  padding-bottom: 8rem;
 }
 
 .empty-state {
@@ -311,6 +313,13 @@ const handleDelete = (transactionId: number) => {
 }
 
 @media (max-width: 480px) {
+  .header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    padding-top: 3rem;
+  }
+
   .transaction-item {
     padding: 0.625rem 0.875rem;
   }

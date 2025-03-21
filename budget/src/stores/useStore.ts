@@ -1,5 +1,6 @@
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { downloadJSON, uploadJSON } from '../utils/fileHelper'
+import { balanceHistory, importBalanceHistory } from './useBalanceHistoryStore'
 
 export interface Account {
   id: number
@@ -42,22 +43,24 @@ export const currencies = [
   { code: 'GBP', symbol: '£', name: 'British Pound' }
 ]
 
-// Get initial currency from localStorage or default to USD
-const getInitialCurrency = () => {
-  const saved = localStorage.getItem('selectedCurrency')
-  if (saved) {
-    const parsed = JSON.parse(saved)
-    return currencies.find(c => c.code === parsed.code) || currencies[0]
+const defaultSettings = {
+  currency: currencies[0],
+  theme: 'dark',
+  accountSettings: {
+    showBalanceHistory: true,
+    balanceHistoryDays: 10
   }
-  return currencies[0]
 }
 
-export const selectedCurrency = ref(getInitialCurrency())
+// Remove separate currency storage
+export const appSettings = ref(JSON.parse(localStorage.getItem('appSettings') || JSON.stringify(defaultSettings)))
 
+// Create computed for currency access
+export const selectedCurrency = computed(() => appSettings.value.currency)
+
+// Update setCurrency to modify settings
 export const setCurrency = (currency: typeof currencies[0]) => {
-  selectedCurrency.value = currency
-  // Save to localStorage whenever currency changes
-  localStorage.setItem('selectedCurrency', JSON.stringify(currency))
+  appSettings.value.currency = currency
 }
 
 // Add formatting utilities
@@ -142,6 +145,9 @@ export function moveToDeleted(transactionId: number) {
   const transaction = transactions.value[index]
   
   if (transaction) {
+    // Revert the balance before moving to deleted
+    updateAccountBalance(transaction.account, -transaction.amount)
+
     deletedTransactions.value.unshift({
       ...transaction,
       deletedAt: new Date(),
@@ -159,6 +165,9 @@ export function restoreTransaction(deletedId: number) {
     const { deletedAt, originalIndex, ...transaction } = deletedTransaction
     const targetIndex = Math.min(originalIndex, transactions.value.length)
     
+    // Update the balance when restoring
+    updateAccountBalance(transaction.account, transaction.amount)
+    
     transactions.value.splice(targetIndex, 0, transaction)
     deletedTransactions.value = deletedTransactions.value.filter(t => t.id !== deletedId)
   }
@@ -167,55 +176,89 @@ export function restoreTransaction(deletedId: number) {
 export function permanentlyDelete(deletedId: number) {
   deletedTransactions.value = deletedTransactions.value.filter(t => t.id !== deletedId)
 }
+
+interface AppSettings {
+  currency: typeof currencies[0]
+  theme: string
+  accountSettings: {
+    showBalanceHistory: boolean
+    balanceHistoryDays: number
+  }
+}
+
 export function exportAllData() {
   const data = {
     accounts: accounts.value,
     transactions: transactions.value,
     deletedTransactions: deletedTransactions.value,
-    selectedCurrency: selectedCurrency.value
-  };
+    balanceHistory: balanceHistory.value,
+    settings: appSettings.value // This will now include currency
+  }
   
-  const timestamp = new Date().toISOString().split('T')[0];
-  downloadJSON(data, `budget-backup-${timestamp}.json`);
+  const timestamp = new Date().toISOString().split('T')[0]
+  downloadJSON(data, `budget-backup-${timestamp}.json`)
 }
 
-export async function importAllData() {
+export async function importAllData(data: any) {
   try {
-    const data = await uploadJSON();
-    
+    // Remove the uploadJSON call since data is now passed in
+    if (!data.accounts || !data.transactions) {
+      throw new Error('Invalid backup file format')
+    }
+
     // Validate data structure
-    if (!data.accounts || !data.transactions || !data.selectedCurrency) {
-      throw new Error('Invalid backup file format');
+    if (!data.accounts || !data.transactions) {
+      throw new Error('Invalid backup file format')
     }
 
     // Parse dates
     data.accounts = data.accounts.map((a: any) => ({
       ...a,
       createdAt: new Date(a.createdAt)
-    }));
+    }))
     
     data.transactions = data.transactions.map((t: any) => ({
       ...t,
       date: new Date(t.date)
-    }));
+    }))
 
     if (data.deletedTransactions) {
       data.deletedTransactions = data.deletedTransactions.map((t: any) => ({
         ...t,
         date: new Date(t.date),
         deletedAt: new Date(t.deletedAt)
-      }));
+      }))
+    }
+
+    // Import balance history if available
+    if (data.balanceHistory) {
+      importBalanceHistory(data.balanceHistory)
     }
 
     // Update store
-    accounts.value = data.accounts;
-    transactions.value = data.transactions;
-    deletedTransactions.value = data.deletedTransactions || [];
-    setCurrency(data.selectedCurrency);
+    accounts.value = data.accounts
+    transactions.value = data.transactions
+    deletedTransactions.value = data.deletedTransactions || []
 
-    return true;
+    if (data.settings) {
+      // Handle legacy format where currency was separate
+      const settings = {
+        ...defaultSettings,
+        ...data.settings,
+        currency: data.selectedCurrency || data.settings.currency || defaultSettings.currency
+      }
+      
+      // Remove defaultCurrency if it exists
+      if (settings.accountSettings?.defaultCurrency) {
+        delete settings.accountSettings.defaultCurrency
+      }
+      
+      appSettings.value = settings
+    }
+
+    return true
   } catch (error) {
-    console.error('Import failed:', error);
-    return false;
+    console.error('Import failed:', error)
+    return false
   }
 }

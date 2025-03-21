@@ -52,6 +52,7 @@ const goBack = () => {
   align-items: center;
   gap: 1rem;
   margin-bottom: 2rem;
+  margin-top: 3rem;
 }
 
 .header h1 {

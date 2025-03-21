@@ -49,7 +49,7 @@ const changeMonth = (delta: number) => {
 }
 
 const selectDate = (day: number | null) => {
-  if (day === null) return
+  if (day === null || isDateDisabled(day)) return
   const newDate = new Date(currentView.value)
   newDate.setDate(day)
   emit('update:modelValue', newDate)
@@ -76,6 +76,18 @@ const getIsCurrentDay = (day: number | null) => {
          currentView.value.getMonth() === props.modelValue.getMonth() &&
          currentView.value.getFullYear() === props.modelValue.getFullYear()
 }
+
+const isDateDisabled = (day: number | null) => {
+  if (!day) return false
+  const date = new Date(currentView.value.getFullYear(), currentView.value.getMonth(), day)
+  return date > new Date()
+}
+
+const canNavigateNext = computed(() => {
+  const today = new Date()
+  return currentView.value.getMonth() < today.getMonth() || 
+         currentView.value.getFullYear() < today.getFullYear()
+})
 </script>
 
 <template>
@@ -84,10 +96,8 @@ const getIsCurrentDay = (day: number | null) => {
       <Button variant="ghost" size="icon" @click="handleMonthChange(-1)">
         <ChevronLeft :size="16" />
       </Button>
-      <!-- <Transition name="fade" mode="out-in"> -->
-        <span :key="monthYear" class="month-year">{{ monthYear }}</span>
-      <!-- </Transition> -->
-      <Button variant="ghost" size="icon" @click="handleMonthChange(1)">
+      <span :key="monthYear" class="month-year">{{ monthYear }}</span>
+      <Button variant="ghost" size="icon" @click="handleMonthChange(1)" :disabled="!canNavigateNext">
         <ChevronRight :size="16" />
       </Button>
     </div>
@@ -97,19 +107,20 @@ const getIsCurrentDay = (day: number | null) => {
           {{ day }}
         </div>
       </div>
-      <!-- <Transition :name="'slide-' + slideDirection" mode="out-in"> -->
-        <div :key="monthYear" class="days-grid">
-          <button
-            v-for="(day, index) in days"
-            :key="index"
-            :class="['day', { 'current': getIsCurrentDay(day) }]"
-            @click="() => day !== null && selectDate(day)"
-            :disabled="day === null"
-          >
-            <span class="day-text">{{ day }}</span>
-          </button>
-        </div>
-      <!-- </Transition> -->
+      <div :key="monthYear" class="days-grid">
+        <button
+          v-for="(day, index) in days"
+          :key="index"
+          :class="['day', { 
+            'current': getIsCurrentDay(day),
+            'disabled': isDateDisabled(day)
+          }]"
+          @click="() => day !== null && selectDate(day)"
+          :disabled="day === null || isDateDisabled(day)"
+        >
+          <span class="day-text">{{ day }}</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -244,5 +255,14 @@ const getIsCurrentDay = (day: number | null) => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.day.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.day.disabled .day-text:hover {
+  background: none;
 }
 </style>

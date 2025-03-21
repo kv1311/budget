@@ -244,7 +244,7 @@ const formatCurrency = (amount: number) => {
   height: 100vh;
   background: #000;
   position: fixed;
-  width: 85%;
+  width: 100%;
 }
 
 .header {
@@ -289,7 +289,7 @@ const formatCurrency = (amount: number) => {
 }
 
 .content {
-  max-width: 768px;
+  max-width: 100%;
   margin: 0 auto;
 }
 

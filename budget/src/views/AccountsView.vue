@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { ChevronLeft, Plus, X, Check, Trash2, Edit } from 'lucide-vue-next'
+import { ref, watch, onMounted } from 'vue'
+import { ChevronLeft, Plus, X, Check, Trash2, Edit, ChartLine } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import Button from '../components/ui/Button.vue'
+import AccountDetailsModal from '../components/AccountDetailsModal.vue'
 import { accounts, selectedCurrency,transactions } from '../stores/useStore'
+import { initializeBalanceLogging } from '../stores/useBalanceHistoryStore'
+import '../styles/animations.css'
 
 interface Account {
   id: number;
@@ -305,6 +308,19 @@ const handleOutsideClick = (e: MouseEvent) => {
   }
 }
 
+// Add new ref for details modal
+const showDetails = ref(false)
+const selectedAccount = ref<Account | null>(null)
+
+const showAccountDetails = (account: Account) => {
+  selectedAccount.value = account
+  showDetails.value = true
+  showPopup.value = null
+}
+
+onMounted(() => {
+  initializeBalanceLogging()
+})
 </script>
 
 <template>
@@ -320,7 +336,11 @@ const handleOutsideClick = (e: MouseEvent) => {
       </Button>
     </header>
 
-    <div class="accounts-list">
+    <TransitionGroup 
+      name="list" 
+      tag="div" 
+      class="accounts-list"
+    >
       <div 
         v-for="account in accounts" 
         :key="account.id" 
@@ -369,6 +389,10 @@ const handleOutsideClick = (e: MouseEvent) => {
             }"
             @click.stop
           >
+            <button @click="showAccountDetails(account)" class="popup-btn details">
+              <ChartLine :size="16" />
+              Details
+            </button>
             <button @click="startEdit(account)" class="popup-btn edit">
               <Edit :size="16" />
               Edit
@@ -380,7 +404,7 @@ const handleOutsideClick = (e: MouseEvent) => {
           </div>
         </Transition>
       </div>
-    </div>
+    </TransitionGroup>
 
     <Transition name="slide">
       <div v-if="showAddForm" class="add-account">
@@ -407,7 +431,7 @@ const handleOutsideClick = (e: MouseEvent) => {
     </Transition>
 
     <!-- Replace the sliding edit form with this centered modal -->
-    <Transition name="fade">
+    <Transition name="modal">
       <div v-if="editingAccount" class="modal-overlay" @click="cancelEdit">
         <div class="modal-content" @click.stop>
           <h3>Edit Account</h3>
@@ -437,7 +461,7 @@ const handleOutsideClick = (e: MouseEvent) => {
     </Transition>
 
     <!-- Add delete confirmation dialog -->
-    <Transition name="fade">
+    <Transition name="modal">
       <div v-if="showDeleteConfirm" class="modal-overlay" @click="cancelDelete">
         <div class="modal-content" @click.stop>
           <h3>Delete Account</h3>
@@ -448,6 +472,16 @@ const handleOutsideClick = (e: MouseEvent) => {
           </div>
         </div>
       </div>
+    </Transition>
+
+    <!-- Add Account Details Modal -->
+    <Transition name="modal">
+      <AccountDetailsModal
+        v-if="showDetails && selectedAccount"
+        :account-id="selectedAccount.id"
+        :account-name="selectedAccount.name"
+        @close="showDetails = false"
+      />
     </Transition>
   </div>
 </template>
@@ -487,6 +521,7 @@ const handleOutsideClick = (e: MouseEvent) => {
   border-bottom: 1px solid #222;
   position: relative;
   user-select: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .account-info {
@@ -498,7 +533,8 @@ const handleOutsideClick = (e: MouseEvent) => {
   background: #000;
   position: relative;
   z-index: 1;
-  transition: transform 0.2s, scale 0.2s;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .account-info.hold-active {
@@ -725,4 +761,7 @@ const handleOutsideClick = (e: MouseEvent) => {
 }
 
 /* Remove the old slide-related styles since we're using fade */
+.popup-btn.details:hover {
+  color: #60a5fa;
+}
 </style>

@@ -253,7 +253,7 @@ const hasExpenses = computed(() => transactions.value.length > 0)
 <style scoped>
 .home {
   padding: 1rem;
-  max-width: 600px;
+  max-width: 100%;
   margin: 0 auto;
   width: 100%;
 }
