@@ -626,27 +626,28 @@ if ('serviceWorker' in navigator) {
 
 <style scoped>
 .reminder-view {
-  width: 100%;
-  margin: 0 auto;
   padding: 1rem;
-  min-height: 100vh;
-  background: #000000;
-  color: #ffffff;
-  position: fixed;
-  padding-top: 4rem;
-  scroll-behavior: auto;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 1rem);
+  max-width: 600px;
+  margin: 0 auto;;
 }
 
 .reminder-header {
+  position: relative  ;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  position: fixed;
+  padding-bottom: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 2rem);
+  background: #000;
+  z-index: 100;
+  border-bottom: 1px solid #222;
 }
 
 .reminder-header h1 {
   font-size: 1.5rem;
-  font-weight: 600;
   color: white;
 }
 
@@ -748,7 +749,6 @@ input:focus, select:focus {
 
 .reminders-list {
   padding: 1rem 0;
-  padding-top: 4rem;
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -958,7 +958,6 @@ input:focus, select:focus {
   background: none;
   border: none;
   color: #71717a;
-  cursor: pointer;
   padding: 0.5rem;
   transition: color 0.2s;
 }
@@ -1059,7 +1058,6 @@ input[type="date"] {
   background: none;
   border: none;
   color: #fff;
-  cursor: pointer;
 }
 
 .category-suggestion:hover {
@@ -1073,18 +1071,18 @@ input[type="date"] {
   border: 1px solid #3f3f46;
   border-radius: 8px;
   color: #fff;
-  cursor: pointer;
   font-size: 0.938rem;
   padding: 0.625rem 0.75rem;
   width: 100%;
+  position: relative;
 }
 
 .date-input::-webkit-calendar-picker-indicator {
-  background-color: #fff;
+  opacity: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+  width: 20px;
+  height: 20px;
   cursor: pointer;
-  border-radius: 2px;
-  padding: 5px;
-  filter: invert(1);
 }
 
 .date-input:focus {
@@ -1127,7 +1125,6 @@ input[type="date"] {
   border: none;
   color: #fff;  /* Make sure text is white */
   font-size: 0.875rem;
-  cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
 }

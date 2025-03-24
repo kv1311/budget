@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import ExpenseList from '../components/ExpenseList.vue'
 import TopBar from '../components/TopBar.vue'
 import AccountSuggestions from '../components/AccountSuggestions.vue'
@@ -10,9 +10,10 @@ import {
   selectedCurrency,
   accounts,
   getPrimaryAccountBalance,
-  addTransaction, // Add this import
+  addTransaction,
   calculateTotalExcludingBlacklisted
 } from '../stores/useStore'
+import { Keyboard } from '@capacitor/keyboard'
 
 interface Expense {
   id: number;
@@ -25,26 +26,75 @@ interface Expense {
 }
 
 const inputValue = ref('')
-const currentDate = ref(new Date()) // Add this
+const currentDate = ref(new Date())
+const isKeyboardVisible = ref(false)
+const keyboardHeight = ref(0)
+
+// Setup Capacitor Keyboard listeners with dynamic height
+onMounted(() => {
+  Keyboard.addListener('keyboardWillShow', (info) => {
+    isKeyboardVisible.value = true
+    // The info object contains the keyboard height in pixels
+    keyboardHeight.value = info.keyboardHeight || 0
+    
+    // Apply keyboard height as CSS variable for styling
+    document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight.value}px`)
+  })
+  
+  Keyboard.addListener('keyboardDidShow', (info) => {
+    // Sometimes the height is more accurate in didShow event
+    if (info.keyboardHeight && info.keyboardHeight !== keyboardHeight.value) {
+      keyboardHeight.value = info.keyboardHeight
+      document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight.value}px`)
+    }
+  })
+  
+  Keyboard.addListener('keyboardWillHide', () => {
+    isKeyboardVisible.value = false
+    keyboardHeight.value = 0
+  })
+})
+
+onUnmounted(() => {
+  // Remove listeners when component is unmounted
+  Keyboard.removeAllListeners()
+})
 
 const parseExpense = (input: string): Partial<Expense> | null => {
-  const amountMatch = input.match(/(\d+(\.\d{1,2})?)/)?.[0]
-  if (!amountMatch) return null
+  // Trim the input string first to remove leading/trailing spaces
+  const trimmedInput = input.trim();
+  // Split by one or more spaces and filter out empty strings
+  const tokens = trimmedInput.split(/\s+/).filter(Boolean);
   
-  // Remove amount from input before parsing description
-  const inputWithoutAmount = input.replace(amountMatch, '').trim()
-  const description = inputWithoutAmount.match(/^([^:#]+)/)?.[1]?.trim()
-  const accountMatch = input.match(/:([^\s#]+)/)
-  const category = input.match(/#(\S+)/)?.[1]
+  let amount: number | null = null;
+  let category: string | null = null;
+  let account: string | null = null;
+  let descriptionTokens: string[] = [];
 
-  if (!description) return null
+  tokens.forEach((token) => {
+    if (!isNaN(Number(token))) {
+      amount = parseFloat(token);
+    } else if (token.startsWith('#')) {
+      category = token.slice(1).trim();
+    } else if (token.startsWith(':')) {
+      account = token.slice(1).trim();
+    } else {
+      descriptionTokens.push(token);
+    }
+  });
+
+  const description = descriptionTokens.join(' ').trim();
+
+  if (!amount || !description) {
+    return null;
+  }
 
   return {
-    amount: parseFloat(amountMatch),
+    amount,
+    category: category || 'uncategorized',
+    account: account || undefined,
     description,
-    account: accountMatch ? accountMatch[1].trim() : undefined,
-    category: category || 'uncategorized'
-  }
+  };
 }
 
 const showAccountSuggestions = ref(false)
@@ -63,10 +113,31 @@ const filteredAccounts = computed(() => {
 })
 
 const handleInput = (event: KeyboardEvent) => {
+  // Check if we're in an account input context (after a colon)
+  const colonIndex = inputValue.value.lastIndexOf(':')
+  if (colonIndex !== -1) {
+    showAccountSuggestions.value = true
+    selectedAccountIndex.value = 0
+    cursorPosition.value = inputElement.value?.selectionStart || 0
+  } else {
+    showAccountSuggestions.value = false
+  }
+
   if (event.key === ':') {
     showAccountSuggestions.value = true
     selectedAccountIndex.value = 0
     cursorPosition.value = inputElement.value?.selectionStart || 0
+    return
+  }
+
+  if (event.key === 'Enter') {
+    // If there are account suggestions and one is selected, use it
+    if (showAccountSuggestions.value && filteredAccounts.value.length > 0) {
+      selectAccount(filteredAccounts.value[selectedAccountIndex.value])
+      showAccountSuggestions.value = false
+    }
+    // Always try to submit after handling suggestions
+    handleExpenseSubmit()
     return
   }
 
@@ -80,65 +151,77 @@ const handleInput = (event: KeyboardEvent) => {
       if (selectedAccountIndex.value < 0) {
         selectedAccountIndex.value = filteredAccounts.value.length - 1
       }
-    } else if (event.key === 'Enter' && filteredAccounts.value.length > 0) {
-      event.preventDefault()
-      selectAccount(filteredAccounts.value[selectedAccountIndex.value])
     } else if (event.key === 'Escape') {
       showAccountSuggestions.value = false
     }
-  } else if (event.key === 'Enter') {
-    // Original enter handling for expense submission
-    handleExpenseSubmit()
+  }
+}
+
+// Add a new method to watch input changes
+const onInputChange = () => {
+  const colonIndex = inputValue.value.lastIndexOf(':')
+  if (colonIndex !== -1) {
+    showAccountSuggestions.value = true
+    selectedAccountIndex.value = 0
+  } else {
+    showAccountSuggestions.value = false
   }
 }
 
 const selectAccount = (account: Account) => {
-  const colonIndex = inputValue.value.lastIndexOf(':')
-  if (colonIndex === -1) return
+  const colonIndex = inputValue.value.lastIndexOf(':');
+  if (colonIndex === -1) return;
 
   // Find the next space after the colon
-  const nextSpaceIndex = inputValue.value.indexOf(' ', colonIndex)
+  const nextSpaceIndex = inputValue.value.indexOf(' ', colonIndex);
   const textAfterAccount = nextSpaceIndex !== -1 
     ? inputValue.value.slice(nextSpaceIndex) 
-    : ''
+    : '';
 
   // Replace from colon to next space (or end) and append any remaining text
   inputValue.value = 
     inputValue.value.slice(0, colonIndex) + 
     ':' + account.name +
-    textAfterAccount
-    
-  showAccountSuggestions.value = false
-  
+    textAfterAccount;
+
+  showAccountSuggestions.value = false;
+
   // Keep input focused and move cursor to end
   nextTick(() => {
-    inputElement.value?.focus()
-    const newCursorPosition = inputValue.value.length
-    inputElement.value?.setSelectionRange(newCursorPosition, newCursorPosition)
-  })
+    inputElement.value?.focus();
+    const newCursorPosition = inputValue.value.length;
+    inputElement.value?.setSelectionRange(newCursorPosition, newCursorPosition);
+  });
 }
 
 // Move original Enter key handling to a separate function
 const handleExpenseSubmit = () => {
-  const parsed = parseExpense(inputValue.value)
-  if (!parsed || !parsed.description || !parsed.amount) return
+  const parsed = parseExpense(inputValue.value);
+  if (!parsed || !parsed.description || !parsed.amount) return;
 
-  // Find the specified account - add debug logging
-  let accountToUse = null
+  // Add debug logging
+  console.log('Full parsed expense:', parsed);
+  console.log({
+    account: parsed.account,
+    amount: parsed.amount,
+    description: parsed.description,
+    category: parsed.category
+  });
+
+  // Find the specified account
+  let accountToUse = null;
   if (parsed.account) {
-    accountToUse = accounts.value.find(a => a.name === parsed.account)
+    accountToUse = accounts.value.find(a => a.name === parsed.account);
     if (!accountToUse) {
-      console.log('Looking for account:', parsed.account)
-      console.log('Available accounts:', accounts.value.map(a => a.name))
-      console.error('Specified account not found')
-      return
+      console.error(`Specified account "${parsed.account}" not found`);
+      return; // Exit if the account is invalid
     }
   } else {
     // If no account specified, use primary account or first account
-    accountToUse = accounts.value.find(a => a.isPrimary) || accounts.value[0]
+    accountToUse = accounts.value.find(a => a.isPrimary) || accounts.value[0];
     if (!accountToUse) {
-      console.error('No valid account found')
-      return
+      console.error('No valid account found');
+      return;
     }
   }
 
@@ -149,11 +232,11 @@ const handleExpenseSubmit = () => {
     amount: -parsed.amount,
     category: parsed.category || 'uncategorized',
     account: accountToUse.name,
-    currency: selectedCurrency.value.code
-  })
-  
-  inputValue.value = ''
-}
+    currency: selectedCurrency.value.code,
+  });
+
+  inputValue.value = ''; // Clear the input after submission
+};
 
 // Update placeholder to show current currency
 const inputPlaceholder = computed(() => 
@@ -164,7 +247,7 @@ const handleAddExpense = (expenseData: any) => {
   transactions.value.push({
     id: Date.now(),
     date: currentDate.value,
-    currency: selectedCurrency.value.code, // Add currency here too
+    currency: selectedCurrency.value.code,
     ...expenseData
   })
 }
@@ -215,6 +298,15 @@ const monthlyExpenses = computed(() => {
 })
 
 const hasExpenses = computed(() => transactions.value.length > 0)
+
+// Compute bottom section style based on keyboard height
+const bottomSectionStyle = computed(() => {
+  if (isKeyboardVisible.value && keyboardHeight.value > 0) {
+    // Add a small buffer (20px) to position it slightly above the keyboard
+    return { transform: `translateY(calc(-1 * (var(--keyboard-height) + 20px)))` }
+  }
+  return {}
+})
 </script>
 
 <template>
@@ -223,7 +315,7 @@ const hasExpenses = computed(() => transactions.value.length > 0)
       :current-date="currentDate"
       @update:current-date="currentDate = $event"
     />
-    <main class="content">
+    <main class="content" :class="{ 'keyboard-visible': isKeyboardVisible }">
       <!-- Make the list scrollable -->
       <div class="scrollable-container">
         <div v-if="!hasExpenses" class="empty-state">
@@ -245,7 +337,11 @@ const hasExpenses = computed(() => transactions.value.length > 0)
       </div>
 
       <!-- Fixed bottom section with total and input -->
-      <div class="bottom-section">
+      <div 
+        class="bottom-section" 
+        :class="{ 'keyboard-active': isKeyboardVisible }"
+        :style="bottomSectionStyle"
+      >
         <div class="total-display" @click="toggleTotalDisplay">
           <Transition name="fade" mode="out-in">
             <span v-if="!showMonthlyTotal" :key="'daily'">
@@ -262,6 +358,9 @@ const hasExpenses = computed(() => transactions.value.length > 0)
             ref="inputElement"
             v-model="inputValue"
             @keydown="handleInput"
+            @input="onInputChange"
+            @focus="isKeyboardVisible = true"
+            @blur="isKeyboardVisible = false"
             @click.stop
             :placeholder="inputPlaceholder"
             class="expense-input"
@@ -281,12 +380,14 @@ const hasExpenses = computed(() => transactions.value.length > 0)
 <style scoped>
 .home {
   height: 100vh;
+  height: -webkit-fill-available; /* iOS viewport fix */
   width: 100%;
   position: fixed;
   display: flex;
   flex-direction: column;
   background: #000; 
 }
+
 .top-bar {
   position: relative;
   left: 0;
@@ -311,21 +412,38 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   overflow: hidden;
 }
 
+/* Adjust content when keyboard is visible */
+.content.keyboard-visible {
+  /* This will be adjusted dynamically based on keyboard height */
+  height: calc(100% - var(--keyboard-height, 300px));
+}
+
 .scrollable-container {
   flex: 1;
   overflow-y: auto;
   padding: 1rem;
   padding-top: calc(1rem + env(safe-area-inset-top, 3rem)); /* Adjust padding to account for TopBar */
-  padding-bottom: env(safe-area-inset-bottom, 20px);
+  /* Adjust bottom padding to account for fixed bottom section */
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 20px));
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .bottom-section {
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   background: #000;
   padding-bottom: env(safe-area-inset-bottom, 20px);
   border-top: 1px solid #222;
+  z-index: 1000;
+  transition: transform 0.2s ease-out;
+}
+
+/* The transform style will be applied dynamically based on actual keyboard height */
+.bottom-section.keyboard-active {
+  position: fixed;
+  bottom: 0;
 }
 
 .total-display {
@@ -344,6 +462,8 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   background: #000;
   padding: 0.5rem 1rem;
   position: relative; /* For account suggestions positioning */
+  /* Add padding to ensure visibility above keyboard */
+  padding-bottom: env(safe-area-inset-bottom, 20px);
 }
 
 .expense-input {
@@ -356,7 +476,8 @@ const hasExpenses = computed(() => transactions.value.length > 0)
   height: 50px;
   box-sizing: border-box;
   font-family: var(--font-family);
-  padding-bottom: 4rem;
+  /* Remove bottom padding that was pushing content down */
+  padding-bottom: 0.75rem;
 }
 
 .expense-input:focus {

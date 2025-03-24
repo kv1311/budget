@@ -274,7 +274,7 @@ const formatCurrency = (amount: number) => {
   background: #000;
   min-height: 1cm;
   padding: 1rem;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 2rem);
+  padding-top: calc(env(safe-area-inset-top, 20px) + 3rem);
   border-bottom: 1px solid #222;
   touch-action: none;
 }
@@ -282,8 +282,9 @@ const formatCurrency = (amount: number) => {
 .scrollable-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0 1rem; /* Make space for fixed header */
-  padding-bottom: 8rem; /* Make space for total bar */
+  padding: 0 1rem;
+  margin-top: calc(env(safe-area-inset-top, 20px) + 5rem); /* Add top margin to account for fixed header */
+  padding-bottom: 4rem;  /* Make space for total bar */
 }
 
 .total-bar {
@@ -507,7 +508,6 @@ const formatCurrency = (amount: number) => {
     font-size: 0.75rem;
     font-weight: 600;
     padding: 0.75rem 1rem;
-    padding-top: 3rem
   }
 
 

@@ -1,6 +1,7 @@
 import { ref, watch, computed } from 'vue'
 import { downloadJSON, uploadJSON } from '../utils/fileHelper'
 import { balanceHistory, importBalanceHistory } from './useBalanceHistoryStore'
+import { addBalanceRecord } from './useBalanceHistoryStore'
 
 export interface Account {
   id: number
@@ -214,11 +215,12 @@ export function getPrimaryAccountBalance(): number {
 }
 
 export function updateAccountBalance(accountName: string, amount: number) {
-  // Find exact matching account
   const account = accounts.value.find(a => a.name === accountName)
   
   if (account) {
     account.balance += amount
+    // Add balance record after updating
+    addBalanceRecord(account.id, account.balance)
   } else {
     console.error(`Account "${accountName}" not found`)
   }
@@ -332,13 +334,14 @@ interface AppSettings {
 export const addReminder = (reminder: Omit<Reminder, 'id'>) => {
   const newReminder = {
     id: Date.now(),
-    ...reminder
+    ...reminder,
+    category: reminder.category.trim() // Trim the category
   }
   reminders.value.push(newReminder)
   
-  // Add category if it's new
-  if (reminder.category && !categories.value.find(c => c.name === reminder.category)) {
-    addCategory(reminder.category)
+  // Add category if it's new (use trimmed category)
+  if (newReminder.category && !categories.value.find(c => c.name === newReminder.category)) {
+    addCategory(newReminder.category)
   }
 }
 
@@ -576,4 +579,36 @@ export const calculateTotalExcludingBlacklisted = (transactions: Transaction[]) 
   return transactions
     .filter(tx => !blacklistedCategories.value.includes(tx.category))
     .reduce((sum, tx) => sum + tx.amount, 0)
+}
+
+// Make sure to load initial balances
+watch(accounts, (newAccounts) => {
+  newAccounts.forEach(account => {
+    addBalanceRecord(account.id, account.balance)
+  })
+}, { immediate: true })
+
+// Add category deletion function
+export function deleteCategory(categoryId: number) {
+  const category = categories.value.find(c => c.id === categoryId)
+  if (category && category.transactions.length === 0) {
+    categories.value = categories.value.filter(c => c.id !== categoryId)
+  }
+}
+
+// Add category update function
+export function updateCategoryName(categoryId: number, newName: string) {
+  const category = categories.value.find(c => c.id === categoryId)
+  if (category) {
+    const oldName = category.name
+    category.name = newName
+    
+    // Update category name in all transactions
+    transactions.value = transactions.value.map(transaction => {
+      if (transaction.category === oldName) {
+        return { ...transaction, category: newName }
+      }
+      return transaction
+    })
+  }
 }

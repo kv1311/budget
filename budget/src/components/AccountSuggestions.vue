@@ -61,24 +61,24 @@ onUnmounted(() => {
 <style scoped>
 .account-suggestions {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%; /* Change from bottom: 100% to top: 100% */
+  left: 1rem;
+  right: 1rem;
+  bottom: calc(100% + 4px);
   background: #111;
   border: 1px solid #333;
   border-radius: 8px;
   overflow: hidden;
   max-height: 200px;
   overflow-y: auto;
-  z-index: 1000;
-  margin-top: 4px; /* Change from margin-bottom to margin-top */
+  z-index: 10000;
 }
 
 .account-suggestions.position-above {
   bottom: auto;
   top: 100%;
   margin-bottom: 0;
-  margin-top: 4px;
+  margin-top: 4px
+  
 }
 
 .suggestion-item {

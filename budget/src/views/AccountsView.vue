@@ -4,7 +4,7 @@ import { ChevronLeft, Plus, X, Check, Trash2, Edit, ChartLine } from 'lucide-vue
 import { useRouter } from 'vue-router'
 import Button from '../components/ui/Button.vue'
 import AccountDetailsModal from '../components/AccountDetailsModal.vue'
-import { accounts, selectedCurrency,transactions } from '../stores/useStore'
+import { accounts, selectedCurrency, transactions } from '../stores/useStore'
 import { initializeBalanceLogging } from '../stores/useBalanceHistoryStore'
 import '../styles/animations.css'
 
@@ -28,7 +28,6 @@ interface Transaction {
 }
 
 const router = useRouter()
-// const accounts = ref<Account[]>([])
 const newAccountName = ref('')
 const newAccountBalance = ref('')
 const showAddForm = ref(false)
@@ -80,51 +79,143 @@ watch(selectedCurrency, () => {
   accounts.value = [...accounts.value]
 }, { deep: true })
 
-// Add touch handling state
-const touchStart = ref<number | null>(null)
-const touchMove = ref<number | null>(null)
-const activeAccountId = ref<number | null>(null)
-
-// Add edit form state
+// Handle editing
 const editingAccount = ref<Account | null>(null)
 const editAccountName = ref('')
 const editAccountBalance = ref('')
 
-// Add showLeftAction and showRightAction states
-const showLeftAction = ref<number | null>(null)
-const showRightAction = ref<number | null>(null)
+// Hold state management
+const holdTimeout = ref<number | null>(null)
+const holdActive = ref<number | null>(null)
+const showPopup = ref<number | null>(null)
+const popupPosition = ref({ x: 0, y: 0 })
+const isHolding = ref(false) // Add this to track if we're currently in a hold state
 
-// Touch handling methods
-const handleTouchStart = (e: TouchEvent) => {
-  touchStart.value = e.touches[0].clientX
-}
-
-const handleTouchMove = (e: TouchEvent, accountId: number) => {
-  touchMove.value = e.touches[0].clientX
-  activeAccountId.value = accountId
-}
-
-const handleTouchEnd = (account: Account) => {
-  if (!touchStart.value || !touchMove.value) return
-
-  const swipeDistance = touchStart.value - touchMove.value
-  if (Math.abs(swipeDistance) > 100) {
-    if (swipeDistance > 0) {
-      showRightAction.value = account.id
-    } else {
-      showLeftAction.value = account.id
-    }
+// Modified hold methods to fix double popup issue
+const startHold = (e: MouseEvent | TouchEvent, accountId: number) => {
+  if (showPopup.value) return // Prevent new popup if one is already open
+  
+  // Handle right-click
+  if (e instanceof MouseEvent && e.button === 2) {
+    e.preventDefault()
+    handleContextMenu(e, accountId)
+    return
   }
 
-  touchStart.value = null
-  touchMove.value = null
-  activeAccountId.value = null
+  // Clear any existing timeout
+  if (holdTimeout.value) {
+    clearTimeout(holdTimeout.value)
+  }
+
+  isHolding.value = true // Set flag to indicate we're in hold state
+  
+  holdTimeout.value = setTimeout(() => {
+    if (isHolding.value) { // Only show popup if we're still in hold state
+      handlePopup(e, accountId)
+    }
+  }, 500)
 }
 
-// Add method to close actions
-const closeActions = () => {
-  showLeftAction.value = null
-  showRightAction.value = null
+const handleContextMenu = (e: MouseEvent | TouchEvent, accountId: number) => {
+  e.preventDefault()
+  handlePopup(e, accountId)
+}
+
+const handlePopup = (e: MouseEvent | TouchEvent, accountId: number) => {
+  holdActive.value = accountId
+  const rect = (e.target as HTMLElement).getBoundingClientRect()
+  
+  // Get viewport dimensions
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  
+  // Calculate initial position
+  let x = 'touches' in e ? e.touches[0].clientX : e.clientX
+  let y = ('touches' in e ? e.touches[0].clientY : e.clientY) - rect.height
+  
+  // Adjust popup position
+  const popupWidth = 150
+  const popupHeight = 100
+  
+  if (x + popupWidth > viewportWidth) {
+    x = viewportWidth - popupWidth - 16
+  }
+  if (x < 0) {
+    x = 16
+  }
+  
+  if (y + popupHeight > viewportHeight) {
+    y = viewportHeight - popupHeight - 16
+  }
+  if (y < 0) {
+    y = 16
+  }
+
+  popupPosition.value = { x, y }
+  showPopup.value = accountId
+}
+
+const cancelHold = () => {
+  if (holdTimeout.value) {
+    clearTimeout(holdTimeout.value)
+    holdTimeout.value = null
+  }
+  holdActive.value = null
+  isHolding.value = false // Reset the holding state
+}
+
+const closePopup = () => {
+  showPopup.value = null
+}
+
+// Delete confirmation refs
+const showDeleteConfirm = ref(false)
+const accountToDelete = ref<Account | null>(null)
+
+// Confirmation handling methods
+const confirmDelete = (account: Account) => {
+  accountToDelete.value = account
+  showDeleteConfirm.value = true
+  showPopup.value = null // Close the action popup
+}
+
+const handleDeleteConfirm = () => {
+  if (accountToDelete.value) {
+    deleteAccount(accountToDelete.value.id)
+    showDeleteConfirm.value = false
+    accountToDelete.value = null
+  }
+}
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  accountToDelete.value = null
+}
+
+// Modified to properly detect clicks outside popup
+const handleOutsideClick = (e: MouseEvent) => {
+  // Close popup if clicking outside of it
+  if (showPopup.value && !isClickInsidePopup(e)) {
+    closePopup()
+  }
+}
+
+// Helper function to check if click is inside popup
+const isClickInsidePopup = (e: MouseEvent): boolean => {
+  if (!showPopup.value) return false
+  
+  const popupElement = document.querySelector('.action-popup')
+  return popupElement ? popupElement.contains(e.target as Node) : false
+}
+
+// Account Details Modal
+const showDetails = ref(false)
+const selectedAccount = ref<Account | null>(null)
+
+const showAccountDetails = (account: Account) => {
+  selectedAccount.value = account
+  showDetails.value = true
+  showPopup.value = null
 }
 
 // Edit methods
@@ -133,6 +224,7 @@ const startEdit = (account: Account) => {
   editAccountName.value = account.name
   editAccountBalance.value = account.balance.toString()
   showAddForm.value = false
+  showPopup.value = null // Close popup when starting edit
 }
 
 const cancelEdit = () => {
@@ -187,144 +279,22 @@ const deleteAccount = (accountId: number) => {
   }
 }
 
-const getSwipeStyle = (accountId: number) => {
-  if (accountId !== activeAccountId.value && 
-      accountId !== showLeftAction.value && 
-      accountId !== showRightAction.value) return {}
-  
-  if (showLeftAction.value === accountId) {
-    return {
-      transform: 'translateX(100px)',
-      transition: 'transform 0.3s'
-    }
-  }
-  
-  if (showRightAction.value === accountId) {
-    return {
-      transform: 'translateX(-100px)',
-      transition: 'transform 0.3s'
-    }
-  }
-  
-  if (touchStart.value && touchMove.value) {
-    const diff = touchMove.value - touchStart.value
-    const translate = Math.max(-100, Math.min(100, diff))
-    return {
-      transform: `translateX(${translate}px)`,
-      transition: 'transform 0.1s'
-    }
-  }
-  
-  return {}
-}
-
-// Remove all swipe-related refs and add hold-related refs
-const holdTimeout = ref<number | null>(null)
-const holdActive = ref<number | null>(null)
-const showPopup = ref<number | null>(null)
-const popupPosition = ref({ x: 0, y: 0 })
-
-// Remove swipe-related methods and add hold methods
-const startHold = (e: MouseEvent | TouchEvent, accountId: number) => {
-  holdTimeout.value = setTimeout(() => {
-    holdActive.value = accountId
-    const rect = (e.target as HTMLElement).getBoundingClientRect()
-    
-    // Get viewport dimensions
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-    
-    // Calculate initial position
-    let x = 'touches' in e ? e.touches[0].clientX : e.clientX
-    let y = ('touches' in e ? e.touches[0].clientY : e.clientY) - rect.height
-
-    // Get popup dimensions (estimate if not yet rendered)
-    const popupWidth = 150  // Estimated popup width
-    const popupHeight = 100 // Estimated popup height
-    
-    // Adjust x position to keep popup within horizontal bounds
-    if (x + popupWidth > viewportWidth) {
-      x = viewportWidth - popupWidth - 16 // 16px margin
-    }
-    if (x < 0) {
-      x = 16 // 16px margin
-    }
-    
-    // Adjust y position to keep popup within vertical bounds
-    if (y + popupHeight > viewportHeight) {
-      y = viewportHeight - popupHeight - 16
-    }
-    if (y < 0) {
-      y = 16
-    }
-
-    popupPosition.value = { x, y }
-    showPopup.value = accountId
-  }, 500)
-}
-
-const cancelHold = () => {
-  if (holdTimeout.value) {
-    clearTimeout(holdTimeout.value)
-    holdTimeout.value = null
-  }
-  holdActive.value = null
-}
-
-const closePopup = () => {
-  showPopup.value = null
-}
-
-// Add new refs for delete confirmation
-const showDeleteConfirm = ref(false)
-const accountToDelete = ref<Account | null>(null)
-
-// Add confirmation handling methods
-const confirmDelete = (account: Account) => {
-  accountToDelete.value = account
-  showDeleteConfirm.value = true
-  showPopup.value = null // Close the action popup
-}
-
-const handleDeleteConfirm = () => {
-  if (accountToDelete.value) {
-    deleteAccount(accountToDelete.value.id)
-    showDeleteConfirm.value = false
-    accountToDelete.value = null
-  }
-}
-
-const cancelDelete = () => {
-  showDeleteConfirm.value = false
-  accountToDelete.value = null
-}
-
-const handleOutsideClick = (e: MouseEvent) => {
-  // Only close if clicking outside both the popup and the account item
-  if (showPopup.value && 
-      !(e.target as HTMLElement).closest('.action-popup') &&
-      !(e.target as HTMLElement).closest('.account-info')) {
-    closePopup()
-  }
-}
-
-// Add new ref for details modal
-const showDetails = ref(false)
-const selectedAccount = ref<Account | null>(null)
-
-const showAccountDetails = (account: Account) => {
-  selectedAccount.value = account
-  showDetails.value = true
-  showPopup.value = null
-}
-
+// Add event listener for document-level clicks
 onMounted(() => {
   initializeBalanceLogging()
+  
+  // Add global click handler to close popup when clicking outside
+  document.addEventListener('click', (e) => {
+    if (showPopup.value && !isClickInsidePopup(e)) {
+      closePopup()
+    }
+  })
 })
 </script>
 
 <template>
-  <div class="accounts" @click="handleOutsideClick">
+  <!-- Removed handleOutsideClick from main container -->
+  <div class="accounts">
     <header class="accounts-header">
       <Button variant="ghost" size="icon" @click="router.back()">
         <ChevronLeft :size="24" />
@@ -351,6 +321,7 @@ onMounted(() => {
         @mouseleave="cancelHold"
         @touchend="cancelHold"
         @touchcancel="cancelHold"
+        @contextmenu.prevent="(e) => handleContextMenu(e, account.id)"
       >
         <div 
           class="account-info" 
@@ -371,14 +342,14 @@ onMounted(() => {
               variant="ghost" 
               class="primary-btn"
               title="Set as primary account"
-              @click="setPrimaryAccount(account.id)"
+              @click.stop="setPrimaryAccount(account.id)"
             >
               <Check :size="16" />
             </Button>
           </div>
         </div>
 
-        <!-- Action Popup -->
+        <!-- Action Popup - with stopPropagation to prevent immediate closing -->
         <Transition name="fade">
           <div 
             v-if="showPopup === account.id" 
@@ -430,7 +401,7 @@ onMounted(() => {
       </div>
     </Transition>
 
-    <!-- Replace the sliding edit form with this centered modal -->
+    <!-- Edit Account Modal -->
     <Transition name="modal">
       <div v-if="editingAccount" class="modal-overlay" @click="cancelEdit">
         <div class="modal-content" @click.stop>
@@ -460,7 +431,7 @@ onMounted(() => {
       </div>
     </Transition>
 
-    <!-- Add delete confirmation dialog -->
+    <!-- Delete confirmation dialog -->
     <Transition name="modal">
       <div v-if="showDeleteConfirm" class="modal-overlay" @click="cancelDelete">
         <div class="modal-content" @click.stop>
@@ -474,7 +445,7 @@ onMounted(() => {
       </div>
     </Transition>
 
-    <!-- Add Account Details Modal -->
+    <!-- Account Details Modal -->
     <Transition name="modal">
       <AccountDetailsModal
         v-if="showDetails && selectedAccount"
@@ -489,22 +460,28 @@ onMounted(() => {
 <style scoped>
 .accounts {
   padding: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 1rem);
   max-width: 600px;
   margin: 0 auto;
 }
 
 .accounts-header {
+  position: relative  ;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
-  margin-top: 3rem;
+  padding-bottom: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 2rem);
+  background: #000;
+  z-index: 1000;
+  border-bottom: 1px solid #222;
 }
 
 .accounts-header h1 {
   flex: 1;
   font-size: 1.5rem;
-  font-weight: 600;
 }
 
 .add-button {
@@ -522,6 +499,7 @@ onMounted(() => {
   position: relative;
   user-select: none;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  touch-action: none; /* Prevent scrolling while long pressing */
 }
 
 .account-info {
@@ -680,6 +658,10 @@ onMounted(() => {
   color: #ff4757;
 }
 
+.popup-btn.details:hover {
+  color: #60a5fa;
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: all 0.2s ease;
@@ -758,10 +740,5 @@ onMounted(() => {
 .modal-content .account-input:focus {
   outline: none;
   border-color: #42b883;
-}
-
-/* Remove the old slide-related styles since we're using fade */
-.popup-btn.details:hover {
-  color: #60a5fa;
 }
 </style>

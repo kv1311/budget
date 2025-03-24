@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronLeft, EyeOff } from 'lucide-vue-next'
+import { ChevronLeft, EyeOff, Pencil, Trash } from 'lucide-vue-next'
 import Button from '../components/ui/Button.vue'
 import { 
   categories, 
@@ -9,7 +9,9 @@ import {
   formatAmount, 
   blacklistedCategories,
   toggleCategoryBlacklist,
-  isCategoryBlacklisted
+  isCategoryBlacklisted,
+  deleteCategory,
+  updateCategoryName
 } from '../stores/useStore'
 
 const router = useRouter()
@@ -34,6 +36,93 @@ const categoryStats = computed(() => {
 const toggleBlacklist = (categoryName: string) => {
   toggleCategoryBlacklist(categoryName)
 }
+
+// Add new refs for edit modal
+const showEditModal = ref(false)
+const editingCategory = ref<{ id: number, name: string } | null>(null)
+const newCategoryName = ref('')
+
+const canDelete = computed(() => (category: typeof categories.value[0]) => {
+  return category.transactions.length === 0
+})
+
+// Add new refs for long press and action menu
+const pressTimeout = ref<number | null>(null)
+const selectedItemId = ref<number | null>(null)
+const showActionMenu = ref(false)
+const actionMenuPosition = ref({ x: 0, y: 0 })
+
+const handleTouchStart = (category: typeof categories.value[0], event: TouchEvent) => {
+  pressTimeout.value = setTimeout(() => {
+    selectedItemId.value = category.id
+    const rect = (event.target as HTMLElement).getBoundingClientRect()
+    actionMenuPosition.value = {
+      x: rect.left,
+      y: rect.bottom + window.scrollY
+    }
+    showActionMenu.value = true
+  }, 500) // 500ms for long press
+}
+
+const handleTouchEnd = () => {
+  if (pressTimeout.value) {
+    clearTimeout(pressTimeout.value)
+    pressTimeout.value = null
+  }
+}
+
+const handleMouseDown = (category: typeof categories.value[0], event: MouseEvent) => {
+  pressTimeout.value = setTimeout(() => {
+    selectedItemId.value = category.id
+    actionMenuPosition.value = {
+      x: event.clientX,
+      y: event.clientY + window.scrollY
+    }
+    showActionMenu.value = true
+  }, 500)
+}
+
+const handleMouseUp = () => {
+  if (pressTimeout.value) {
+    clearTimeout(pressTimeout.value)
+    pressTimeout.value = null
+  }
+}
+
+const closeActionMenu = () => {
+  showActionMenu.value = false
+  selectedItemId.value = null
+}
+
+const handleEditFromMenu = () => {
+  const category = categories.value.find(c => c.id === selectedItemId.value)
+  if (category) {
+    editingCategory.value = category
+    newCategoryName.value = category.name
+    showEditModal.value = true
+    closeActionMenu()
+  }
+}
+
+const handleDeleteFromMenu = () => {
+  const category = categories.value.find(c => c.id === selectedItemId.value)
+  if (category && canDelete.value(category)) {
+    deleteCategory(category.id)
+    closeActionMenu()
+  }
+}
+
+const handleEditSubmit = () => {
+  if (editingCategory.value && newCategoryName.value.trim()) {
+    updateCategoryName(editingCategory.value.id, newCategoryName.value.trim())
+    showEditModal.value = false
+    editingCategory.value = null
+    newCategoryName.value = ''
+  }
+}
+
+// Add type for the category find function
+const findCategory = (id: number) => categories.value.find(c => c.id === id)
 </script>
 
 <template>
@@ -54,6 +143,11 @@ const toggleBlacklist = (categoryName: string) => {
         <div v-for="category in categoryStats" 
              :key="category.id" 
              class="category-card"
+             @touchstart="handleTouchStart(category, $event)"
+             @touchend="handleTouchEnd"
+             @mousedown="handleMouseDown(category, $event)"
+             @mouseup="handleMouseUp"
+             @mouseleave="handleMouseUp"
         >
           <div class="category-header">
             <h3>{{ category.name }}</h3>
@@ -63,6 +157,7 @@ const toggleBlacklist = (categoryName: string) => {
                 class="blacklist-button"
                 :class="{ active: isCategoryBlacklisted(category.name) }"
                 @click="toggleBlacklist(category.name)"
+                title="Toggle visibility in totals"
               >
                 <EyeOff :size="14" />
               </button>
@@ -79,44 +174,102 @@ const toggleBlacklist = (categoryName: string) => {
         </div>
       </TransitionGroup>
     </div>
+
+    <!-- Update Action Menu Popup -->
+    <Transition name="fade">
+      <div v-if="showActionMenu" class="action-menu-overlay" @click="closeActionMenu">
+        <div 
+          class="action-menu"
+          :style="{
+            left: `${actionMenuPosition.x}px`,
+            top: `${actionMenuPosition.y}px`
+          }"
+          @click.stop
+        >
+          <button @click="handleEditFromMenu" class="action-button">
+            <Pencil :size="16" />
+            Edit
+          </button>
+          <button 
+            v-if="selectedItemId && findCategory(selectedItemId) && canDelete(findCategory(selectedItemId)!)"
+            @click="handleDeleteFromMenu" 
+            class="action-button delete"
+          >
+            <Trash :size="16" />
+            Delete
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Add Edit Modal -->
+    <Transition name="modal">
+      <div v-if="showEditModal" class="modal-overlay" @click="showEditModal = false">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h2>Edit Category</h2>
+            <button class="close-button" @click="showEditModal = false">×</button>
+          </div>
+          <form @submit.prevent="handleEditSubmit">
+            <div class="form-group">
+              <label for="categoryName">Category Name</label>
+              <input
+                id="categoryName"
+                v-model="newCategoryName"
+                type="text"
+                required
+                placeholder="Enter category name"
+              >
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="cancel-button" @click="showEditModal = false">
+                Cancel
+              </button>
+              <button type="submit" class="submit-button">
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
 .analysis-view {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: #000;
-  position: fixed;
-  width: 100%;
+    padding: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 1rem);
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .header {
+    position: relative  ;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem;
-  border-bottom: 1px solid #222;
+  padding-bottom: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 2rem);
   background: #000;
-  position: fixed;
-  width: 100%;
-  z-index: 10;
-  font-size: 0.75rem
+  z-index: 1000;
+  border-bottom: 1px solid #222;
+  font-size: .75rem;
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
   padding: 0.5rem;
-  padding-top: 7rem;
   scroll-behavior: smooth;
 }
 
 .categories-list {
   display: grid;
   gap: 0.5rem;
-  padding-bottom: 2rem;
+  padding-top: .5rem;
   max-width: 600px;
   margin: 0 auto;
 }
@@ -209,9 +362,165 @@ const toggleBlacklist = (categoryName: string) => {
   position: absolute;
 }
 
-@media (max-width: 480px) {
-  .header {
-    padding-top: 3rem;
-  }
+.action-button {
+  background: transparent;
+  border: none;
+  color: #666;
+  padding: 0.25rem;
+  border-radius: 4px;
+  line-height: 0;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.action-button:hover {
+  color: #fff;
+  background: #333;
+}
+
+.action-button.delete {
+  color: #666;
+}
+
+.action-button.delete:hover {
+  color: #ef4444;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background: #111;
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 400px;
+  border: 1px solid #333;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #999;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.submit-button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.cancel-button {
+  background: #333;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+}
+
+/* Modal Animation */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.action-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 100;
+}
+
+.action-menu {
+  position: absolute;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 0.5rem;
+  min-width: 150px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 0.875rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  background: #27272a;
+}
+
+.action-button.delete {
+  color: #ef4444;
+}
+
+/* Make category items not selectable for better touch handling */
+.category-card {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

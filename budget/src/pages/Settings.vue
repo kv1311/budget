@@ -246,28 +246,34 @@ const settingsItems: SettingItem[] = [
 
 <style scoped>
 .settings-page {
-  padding: 1rem;
+  padding: 1rem;/* Adjusted for safe area */
   max-width: 600px;
   margin: 0 auto;
 }
 
 .settings-header {
+  position: relative;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
-  margin-top: 3rem;
+  padding-bottom: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px));
+  background: #000;
+  z-index: 100;
+  border-bottom: 1px solid #222;
 }
 
 .settings-header h1 {
   font-size: 1.5rem;
-  font-weight: 600;
 }
 
 .settings-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding:1rem;
 }
 
 .setting-item {

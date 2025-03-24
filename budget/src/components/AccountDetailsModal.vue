@@ -57,13 +57,12 @@ const accountHistory = computed(() => {
 
 <style scoped>
 .balance-history {
-  margin: 1.5rem 0;
   /* Height calculation: item height (48px) * 10 items */
   height: 480px;
   overflow-y: auto;
-  border: 1px solid #333;
-  border-radius: 8px;
   background: #0a0a0a;
+  padding:1rem;
+  border-radius: 0 0 18px 18px;
 }
 
 .history-item {
@@ -110,13 +109,21 @@ const accountHistory = computed(() => {
   text-align: center;
   color: #888;
   padding: 2rem;
+
+
 }
 
 .modal-header {
   display: flex;
+  gap:1rem;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  background: #111;
+  border-radius: 18px 18px 0 0;
+  padding: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;  
 }
 
 .close-button {

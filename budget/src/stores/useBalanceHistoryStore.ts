@@ -9,16 +9,42 @@ interface BalanceRecord {
 
 export const balanceHistory = ref<BalanceRecord[]>([])
 
+// Load from localStorage
+const savedHistory = localStorage.getItem('balanceHistory')
+if (savedHistory) {
+  balanceHistory.value = JSON.parse(savedHistory)
+}
+
+export function addBalanceRecord(accountId: number, balance: number) {
+  const today = new Date().toISOString().split('T')[0]
+  
+  // Check if we already have a record for this account today
+  const existingIndex = balanceHistory.value.findIndex(
+    record => record.accountId === accountId && record.date === today
+  )
+
+  if (existingIndex !== -1) {
+    // Update existing record
+    balanceHistory.value[existingIndex].balance = balance
+  } else {
+    // Add new record
+    balanceHistory.value.push({
+      accountId,
+      balance,
+      date: today
+    })
+  }
+
+  // Save to localStorage
+  localStorage.setItem('balanceHistory', JSON.stringify(balanceHistory.value))
+}
+
 export function logDailyBalances() {
   const today = new Date().toISOString().split('T')[0]
   
   // Log balance for each account
   accounts.value.forEach(account => {
-    balanceHistory.value.push({
-      accountId: account.id,
-      balance: account.balance,
-      date: today
-    })
+    addBalanceRecord(account.id, account.balance)
   })
 }
 

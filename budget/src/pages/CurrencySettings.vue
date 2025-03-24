@@ -43,21 +43,27 @@ const goBack = () => {
 <style scoped>
 .currency-settings {
   padding: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 1rem);
   max-width: 600px;
   margin: 0 auto;
 }
 
 .header {
+  position: relative  ;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
-  margin-top: 3rem;
+  padding-bottom: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 2rem);
+  background: #000;
+  z-index: 1000;
+  border-bottom: 1px solid #222;
 }
 
 .header h1 {
   font-size: 1.5rem;
-  font-weight: 600;
 }
 
 .currency-list {

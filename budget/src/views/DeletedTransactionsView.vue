@@ -150,24 +150,27 @@ const handleDelete = (transactionId: number) => {
 
 <style scoped>
 .deleted-transactions {
-  display: flex;
+ display: flex;
   flex-direction: column;
   height: 100vh;
   background: #000;
   position: fixed;
   width: 100%;
+  padding-top: 1rem;
+  padding: 1rem;
 }
 
 .header {
-  position: fixed;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 1rem;
+  padding-bottom: 1rem;
   width: 100%;
   z-index: 1000;
   background: #000;
   min-height: 1cm;
-  padding: 1rem;
+  padding-top: calc(env(safe-area-inset-top, 2rem));
   border-bottom: 1px solid #222;
   touch-action: none;
 }
@@ -175,9 +178,8 @@ const handleDelete = (transactionId: number) => {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 0 1rem;
-  padding-top: 6.5rem;
-  padding-bottom: 8rem;
+  padding-bottom: 5rem;
+
 }
 
 .empty-state {
@@ -316,8 +318,6 @@ const handleDelete = (transactionId: number) => {
   .header {
     font-size: 0.75rem;
     font-weight: 600;
-    padding: 0.75rem 1rem;
-    padding-top: 3rem;
   }
 
   .transaction-item {
