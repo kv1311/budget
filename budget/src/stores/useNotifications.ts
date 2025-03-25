@@ -20,14 +20,56 @@ declare global {
 export const useNotifications = defineStore('notifications', () => {
   const hasPermission = ref(false)
 
+  // Add channel initialization
+  const initializeNotificationChannel = async () => {
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      try {
+        await LocalNotifications.createChannel({
+          id: 'reminders',
+          name: 'Reminders',
+          importance: 4, // HIGH
+          description: 'Reminder notifications for upcoming payments',
+          visibility: 1,
+          vibration: true,
+          lights: true,
+          sound: 'default'
+        })
+        console.log('Notification channel created successfully')
+      } catch (error) {
+        console.error('Failed to create notification channel:', error)
+      }
+    }
+  }
+
   const requestPermission = async () => {
     if (Capacitor.isNativePlatform()) {
-      const { display } = await LocalNotifications.checkPermissions()
-      if (display === 'prompt') {
-        const { display: newPermission } = await LocalNotifications.requestPermissions()
-        hasPermission.value = newPermission === 'granted'
-      } else {
-        hasPermission.value = display === 'granted'
+      try {
+        // Initialize channel before checking permissions
+        await initializeNotificationChannel()
+        
+        const { display } = await LocalNotifications.checkPermissions()
+        if (display === 'prompt') {
+          const { display: newPermission } = await LocalNotifications.requestPermissions()
+          hasPermission.value = newPermission === 'granted'
+        } else {
+          hasPermission.value = display === 'granted'
+        }
+        
+        // Register action types after getting permission
+        if (hasPermission.value) {
+          await LocalNotifications.registerActionTypes({
+            types: [{
+              id: 'REMINDER_ACTION',
+              actions: [
+                { id: 'pay', title: 'Paid' },
+                { id: 'later', title: 'Remind Later' }
+              ]
+            }]
+          })
+        }
+      } catch (error) {
+        console.error('Error requesting permissions:', error)
+        hasPermission.value = false
       }
     } else if ('Notification' in window) {
       const permission = await Notification.requestPermission()
@@ -37,111 +79,76 @@ export const useNotifications = defineStore('notifications', () => {
   }
 
   const scheduleReminderNotifications = async (reminder: any) => {
-    if (!hasPermission.value) return
+    if (!hasPermission.value) {
+      const granted = await requestPermission()
+      if (!granted) return
+    }
 
     const dueDate = new Date(reminder.datetime)
-    const twoDaysBefore = new Date(dueDate)
-    twoDaysBefore.setDate(dueDate.getDate() - 2)
     
-    const oneDayBefore = new Date(dueDate)
-    oneDayBefore.setDate(dueDate.getDate() - 1)
+    if (dueDate.getTime() <= Date.now()) return
 
     if (Capacitor.isNativePlatform()) {
-      // Register action types first
-      await LocalNotifications.registerActionTypes({
-        types: [
-          {
-            id: 'REMINDER_ACTION',
-            actions: [
-              {
-                id: 'pay',
-                title: 'Paid ✓'
-              },
-              {
-                id: 'later',
-                title: 'Remind Later'
-              }
-            ]
-          }
-        ]
-      })
+      try {
+        // Initialize Android notification channel
+        if (Capacitor.getPlatform() === 'android') {
+          await LocalNotifications.createChannel({
+            id: 'reminders',
+            name: 'Reminders',
+            importance: 4,
+            visibility: 1,
+            vibration: true,
+            lights: true
+          })
+        }
 
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: reminder.description,
-            body: `Due in 2 days - ${selectedCurrency.value.symbol}${reminder.amount.toFixed(2)}`,
-            id: reminder.id + 2,
-            schedule: { at: twoDaysBefore },
-            actionTypeId: 'REMINDER_ACTION',
-            extra: {
-              reminderId: reminder.id,
-              isDueDate: false
-            }
-          },
-          {
-            title: reminder.description,
-            body: `Due tomorrow - ${selectedCurrency.value.symbol}${reminder.amount.toFixed(2)}`,
-            id: reminder.id + 1,
-            schedule: { at: oneDayBefore },
-            actionTypeId: 'REMINDER_ACTION',
-            extra: {
-              reminderId: reminder.id,
-              isDueDate: false
-            }
-          },
-          {
-            title: reminder.description,
-            body: `Due today! - ${selectedCurrency.value.symbol}${reminder.amount.toFixed(2)}`,
+        await LocalNotifications.schedule({
+          notifications: [{
+            title: `${reminder.description}`,
+            body: `${selectedCurrency.value.symbol}${reminder.amount.toFixed(2)} to be paid from ${reminder.account}`,
             id: reminder.id,
             schedule: { at: dueDate },
             actionTypeId: 'REMINDER_ACTION',
+            smallIcon: 'ic_stat_notifications',
             extra: {
               reminderId: reminder.id,
-              isDueDate: true
+              isDueDate: true,
+              type: 'reminder'
+            }
+          }]
+        })
+
+        // Verify scheduled notifications
+        const pending = await LocalNotifications.getPending()
+        console.log('Pending notifications:', pending)
+      } catch (error) {
+        console.error('Failed to schedule notifications:', error)
+      }
+    } else {
+      // Web notification
+      if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+        const webNotification = {
+          title: `${reminder.description} - Due Today!`,
+          body: `${selectedCurrency.value.symbol}${reminder.amount.toFixed(2)} to be paid from ${reminder.account}`,
+          icon: '/icon.png',
+          tag: 'reminder',
+          renotify: true,
+          requireInteraction: true,
+          data: {
+            reminderId: reminder.id,
+            isDueDate: true,
+            title: reminder.description,
+            reminder: reminder,
+            options: {
+              body: `${reminder.description} - Due Today!`,
+              icon: '/icon.png'
             }
           }
-        ]
-      })
-    } else {
-      const notificationOptions = {
-        body: `${reminder.description} - ${reminder.amount} due soon`,
-        icon: '/icon.png',
-        actions: [
-          { action: 'pay-now', title: 'Pay Now' },
-          { action: 'remind-later', title: 'Remind Later' }
-        ],
-        data: {
-          reminderId: reminder.id,
-          isDueDate: false,
-          title: reminder.description,
-          options: { /* notification options */ }
         }
-      }
 
-      // Schedule 2 days before
-      if (twoDaysBefore > new Date()) {
-        scheduleNotification(reminder.description, {
-          ...notificationOptions,
-          body: `${reminder.description} due in 2 days`,
-        }, twoDaysBefore)
-      }
-
-      // Schedule 1 day before
-      if (oneDayBefore > new Date()) {
-        scheduleNotification(reminder.description, {
-          ...notificationOptions,
-          body: `${reminder.description} due tomorrow`,
-        }, oneDayBefore)
-      }
-
-      // Schedule due date notifications every 2 hours
-      if (dueDate > new Date()) {
-        notificationOptions.data.isDueDate = true
-        scheduleNotification(reminder.description, {
-          ...notificationOptions,
-          body: `${reminder.description} due today!`,
-        }, dueDate)
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification(reminder.description, webNotification)
+        })
       }
     }
   }
@@ -181,7 +188,7 @@ export const useNotifications = defineStore('notifications', () => {
             actions: [
               {
                 id: 'pay',
-                title: 'Paid ✓'
+                title: 'Paid'
               },
               {
                 id: 'later',
@@ -286,10 +293,23 @@ export const useNotifications = defineStore('notifications', () => {
     }
   }
 
+  // Add this for debugging
+  const checkScheduledNotifications = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const pending = await LocalNotifications.getPending()
+        console.log('Pending notifications:', pending)
+      } catch (error) {
+        console.error('Failed to check notifications:', error)
+      }
+    }
+  }
+
   return {
     hasPermission,
     requestPermission,
     scheduleReminderNotifications,
-    testNotification
+    testNotification,
+    checkScheduledNotifications // Add this
   }
 })

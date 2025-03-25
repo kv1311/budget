@@ -78,6 +78,11 @@ export const appSettings = ref(JSON.parse(localStorage.getItem('appSettings') ||
 // Create computed for currency access
 export const selectedCurrency = computed(() => appSettings.value.currency)
 
+// Add watcher to persist settings
+watch(appSettings, (newSettings) => {
+  localStorage.setItem('appSettings', JSON.stringify(newSettings))
+}, { deep: true })
+
 // Update setCurrency to modify settings
 export const setCurrency = (currency: typeof currencies[0]) => {
   appSettings.value.currency = currency

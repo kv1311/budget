@@ -59,6 +59,10 @@
             <Pencil :size="16" />
             Edit
           </button>
+          <button @click="handleTestNotification" class="action-button">
+            <Bell :size="16" />
+            Test Notification
+          </button>
           <button @click="handleDelete" class="action-button delete">
             <Trash :size="16" />
             Delete
@@ -340,7 +344,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, X, ChevronLeft, Pencil, Trash } from 'lucide-vue-next'
+import { Plus, X, ChevronLeft, Pencil, Trash, Bell } from 'lucide-vue-next'
 import Button from '../components/ui/Button.vue'
 import { useRouter } from 'vue-router'
 import { 
@@ -377,7 +381,9 @@ const handleSubmit = async () => {
   
   const reminder = await addReminder(newReminder.value)
   if (notifications.hasPermission) {
-    notifications.scheduleReminderNotifications(reminder)
+    await notifications.scheduleReminderNotifications(reminder)
+    // Add this line to check scheduled notifications
+    await notifications.checkScheduledNotifications()
   }
   
   newReminder.value = {
@@ -570,6 +576,8 @@ const handleEditSubmit = async () => {
     const updated = await updateReminder(editingReminder.value)
     if (notifications.hasPermission) {
       await notifications.scheduleReminderNotifications(updated)
+      // Add this line to check scheduled notifications
+      await notifications.checkScheduledNotifications()
     }
     editingReminder.value = null
     editCategoryInput.value = ''
@@ -622,6 +630,18 @@ if ('serviceWorker' in navigator) {
     }
   })
 }
+
+// Add handleTestNotification function
+const handleTestNotification = async () => {
+  const reminder = reminders.value.find(r => r.id === selectedItemId.value)
+  if (reminder) {
+    if (!notifications.hasPermission) {
+      await notifications.requestPermission()
+    }
+    await notifications.testNotification()
+    closeActionMenu()
+  }
+}
 </script>
 
 <style scoped>
@@ -640,7 +660,6 @@ if ('serviceWorker' in navigator) {
   align-items: center;
   gap: 1rem;
   padding-bottom: 1rem;
-  padding-top: calc(env(safe-area-inset-top, 20px) + 2rem);
   background: #000;
   z-index: 100;
   border-bottom: 1px solid #222;
@@ -1174,5 +1193,9 @@ input[type="date"] {
   .reminder-actions {
     gap: 0.25rem;
   }
+}
+
+.action-button :deep(svg) {
+  color: currentColor;
 }
 </style>

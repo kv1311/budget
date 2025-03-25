@@ -23,6 +23,7 @@ interface Expense {
   category: string;
   account: string;
   currency: string;
+  isCredit?: boolean; // Add this optional property
 }
 
 const inputValue = ref('')
@@ -61,18 +62,23 @@ onUnmounted(() => {
 })
 
 const parseExpense = (input: string): Partial<Expense> | null => {
-  // Trim the input string first to remove leading/trailing spaces
   const trimmedInput = input.trim();
-  // Split by one or more spaces and filter out empty strings
   const tokens = trimmedInput.split(/\s+/).filter(Boolean);
   
   let amount: number | null = null;
   let category: string | null = null;
   let account: string | null = null;
   let descriptionTokens: string[] = [];
+  let isCredit = false;
 
   tokens.forEach((token) => {
-    if (!isNaN(Number(token))) {
+    if (token.startsWith('+')) {
+      isCredit = true;
+      const numericValue = parseFloat(token.slice(1));
+      if (!isNaN(numericValue)) {
+        amount = numericValue;
+      }
+    } else if (!isNaN(Number(token))) {
       amount = parseFloat(token);
     } else if (token.startsWith('#')) {
       category = token.slice(1).trim();
@@ -85,15 +91,23 @@ const parseExpense = (input: string): Partial<Expense> | null => {
 
   const description = descriptionTokens.join(' ').trim();
 
+  // Validate: amount and description are required
   if (!amount || !description) {
     return null;
   }
 
+  // Validate: credit transactions must specify an account
+  if (isCredit && !account) {
+    console.error('Account must be specified for credit transactions');
+    return null;
+  }
+
   return {
-    amount,
+    amount: isCredit ? amount : -amount, // Only negate for debits
     category: category || 'uncategorized',
     account: account || undefined,
     description,
+    isCredit // Add this flag for later use
   };
 }
 
@@ -197,16 +211,7 @@ const selectAccount = (account: Account) => {
 // Move original Enter key handling to a separate function
 const handleExpenseSubmit = () => {
   const parsed = parseExpense(inputValue.value);
-  if (!parsed || !parsed.description || !parsed.amount) return;
-
-  // Add debug logging
-  console.log('Full parsed expense:', parsed);
-  console.log({
-    account: parsed.account,
-    amount: parsed.amount,
-    description: parsed.description,
-    category: parsed.category
-  });
+  if (!parsed || !parsed.description || parsed.amount === undefined) return;
 
   // Find the specified account
   let accountToUse = null;
@@ -214,28 +219,33 @@ const handleExpenseSubmit = () => {
     accountToUse = accounts.value.find(a => a.name === parsed.account);
     if (!accountToUse) {
       console.error(`Specified account "${parsed.account}" not found`);
-      return; // Exit if the account is invalid
+      return;
     }
   } else {
-    // If no account specified, use primary account or first account
-    accountToUse = accounts.value.find(a => a.isPrimary) || accounts.value[0];
-    if (!accountToUse) {
-      console.error('No valid account found');
+    // Only use default account for debits
+    if (parsed.amount < 0) {
+      accountToUse = accounts.value.find(a => a.isPrimary) || accounts.value[0];
+      if (!accountToUse) {
+        console.error('No valid account found');
+        return;
+      }
+    } else {
+      console.error('Account must be specified for credit transactions');
       return;
     }
   }
 
-  // Use the addTransaction function from store
+  // Add the transaction
   addTransaction({
     date: currentDate.value,
     description: parsed.description,
-    amount: -parsed.amount,
+    amount: parsed.amount, // Use the amount directly (already signed correctly)
     category: parsed.category || 'uncategorized',
     account: accountToUse.name,
     currency: selectedCurrency.value.code,
   });
 
-  inputValue.value = ''; // Clear the input after submission
+  inputValue.value = '';
 };
 
 // Update placeholder to show current currency
@@ -267,12 +277,14 @@ const filteredExpenses = computed(() => {
 })
 
 const displayTotal = computed(() => {
-  return calculateTotalExcludingBlacklisted(filteredExpenses.value)
+  const debitsOnly = filteredExpenses.value.filter(tx => tx.amount < 0);
+  return calculateTotalExcludingBlacklisted(debitsOnly);
 })
 
 // Add new computed property for monthly total
 const monthlyTotal = computed(() => {
-  return calculateTotalExcludingBlacklisted(monthlyExpenses.value)
+  const debitsOnly = monthlyExpenses.value.filter(tx => tx.amount < 0);
+  return calculateTotalExcludingBlacklisted(debitsOnly);
 })
 
 // Add state for showing monthly total
@@ -320,11 +332,11 @@ const bottomSectionStyle = computed(() => {
       <div class="scrollable-container">
         <div v-if="!hasExpenses" class="empty-state">
           <p>No expenses yet. Start by entering an expense below.</p>
-          <p class="format-hint">Format: amount description :account #category</p>
+          <p class="format-hint">Format: [+]amount description :account #category</p>
           <p class="examples">
             Examples:<br>
             25.99 Lunch :cash #food<br>
-            99 Netflix :credit #entertainment<br>
+            +100 Salary :savings #income<br>
             12.50 Coffee #drinks :debit
           </p>
         </div>
@@ -448,7 +460,7 @@ const bottomSectionStyle = computed(() => {
 
 .total-display {
   text-align: right;
-  padding: 0.5rem 1rem;
+  padding-right: 1rem;
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
   font-weight: 500;
@@ -460,7 +472,6 @@ const bottomSectionStyle = computed(() => {
 
 .input-container {
   background: #000;
-  padding: 0.5rem 1rem;
   position: relative; /* For account suggestions positioning */
   /* Add padding to ensure visibility above keyboard */
   padding-bottom: env(safe-area-inset-bottom, 20px);
@@ -513,7 +524,6 @@ const bottomSectionStyle = computed(() => {
 
 @media (max-width: 768px) {
   .total-display {
-    padding: 0.5rem 1rem;
     font-size: 0.9rem;
   }
 }

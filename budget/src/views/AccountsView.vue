@@ -473,7 +473,7 @@ onMounted(() => {
   align-items: center;
   gap: 1rem;
   padding-bottom: 1rem;
-  padding-top: calc(env(safe-area-inset-top, 20px) + 2rem);
+
   background: #000;
   z-index: 1000;
   border-bottom: 1px solid #222;

@@ -197,6 +197,7 @@ const settingsItems: SettingItem[] = [
   { icon: Clock, label: 'Recently Deleted', route: '/settings/deleted' },
   { icon: DollarSign, label: 'Currency', route: '/settings/currency' },
   { icon: PieChart, label: 'Analysis', route: '/settings/analysis' },
+  //{ icon: Bell, label: 'Test Notification', action: async () => await notifications.testNotification() },
   { icon: FileDown, label: 'Export Data', action: handleExport },
   { icon: Save, label: 'Import Backup', action: handleImport },
 ]
