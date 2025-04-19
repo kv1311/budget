@@ -17,11 +17,16 @@
       },
       "android": {
         "icon": {
-          "backgroundColor": "#ffffff",
-          "foregroundScale": 0.7
+          "backgroundColor": "#000000",
+          "foregroundScale": 0.7,
+          "adaptive": true,
+          "foreground": "src/assets/icon-foreground.png"
         },
         "splash": {
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#000000",
+          "image": "src/assets/splash.png",
+          "spinnerStyle": "large",
+          "spinnerColor": "#42b883"
         }
       }
     }

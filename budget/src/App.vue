@@ -10,8 +10,7 @@ import PageTransition from './components/PageTransition.vue'
 
 <style>
 :root {
-  
-  --font-family: "Courier New", Courier, monospace;
+  --font-family: 'CustomFont', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 body {
